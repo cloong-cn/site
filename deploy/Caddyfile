@@ -1,0 +1,151 @@
+# Caddy 配置：自动申请和续期 HTTPS 证书，最省事。需要 Caddy 2.11 或更新版本
+# （2.10.2 有个已知问题：发送预压缩文件时会把完整响应错标成 206）。
+# Ubuntu / Debian 自带软件源里的 Caddy 版本偏旧，按官网 https://caddyserver.com/docs/install 添加 Caddy 自己的软件源再安装，
+# 装好后用  caddy version  确认版本。
+# 把 yourname.dev 换成你自己的，放到 /etc/caddy/Caddyfile，然后  systemctl reload caddy
+# 网站文件在 /srv/blog/live（git push 或后台发布，见 README「自动部署」）；
+# 评论服务在本机 8787 端口、后台服务在本机 8788 端口（见 README「评论和后台」）
+#
+# 后台的地址是一串秘密路径：所有的 ADMIN_PATH 都要换成 admin.properties 里 admin.path 去掉开头 / 的那一串：
+#   sudo sed -i 's#ADMIN_PATH#harbor-k3Vq9xTf2LmZ8wRbNp4c#g' /etc/caddy/Caddyfile
+# 换好的这份只放在服务器上，不要提交到 Git 仓库。
+
+www.yourname.dev {
+	redir https://yourname.dev{uri} permanent
+}
+
+yourname.dev {
+	root * /srv/blog/live
+	encode zstd gzip
+
+	# 评论：转给本机的评论服务。请求体最多 32 KB，由 Caddy 先完整收下再转过去
+	# （Caddy 没有内置限流；评论服务自己按访客限制了发评论的频率，后台自己限制了登录的频率）
+	handle /api/comments* {
+		request_body {
+			max_size 32KB
+		}
+		reverse_proxy 127.0.0.1:8787 {
+			request_buffers 32KB
+			header_up X-Real-IP {remote_host}
+			header_up -X-Forwarded-For
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 15s
+			}
+		}
+	}
+
+	# 后台：只在这个秘密地址。页面是构建出来的 _admin/index.html，接口转给后台服务（都要先登录：密码 + 手机验证码）。
+	# 图片最多 25 MB、导入的 zip 最多 300 MB，处理完才回答，所以等得久一些
+	redir /ADMIN_PATH /ADMIN_PATH/ permanent
+	handle /ADMIN_PATH/ {
+		rewrite * /_admin/index.html
+		file_server {
+			precompressed br gzip
+		}
+	}
+	handle /ADMIN_PATH/api/* {
+		request_body {
+			max_size 300MB
+		}
+		reverse_proxy 127.0.0.1:8788 {
+			header_up X-Real-IP {remote_host}
+			header_up -X-Forwarded-For
+			flush_interval -1
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 120s
+			}
+		}
+	}
+
+	# 构建出来的后台页面和假登录页只通过上面和下面的地址给出去，原来的位置不公开
+	handle /_admin/* {
+		error 404
+	}
+	handle /_trap/* {
+		error 404
+	}
+
+	# 假后台：扫描器常试的这些地址都给一个永远登录不了的登录页，由评论服务回答，顺便记下谁来过（不记密码）
+	@trap path_regexp trap (?i)^/(admin|administrator|wp-admin|wp-login\.php|login|signin|user/login|manager|manage|backend|dashboard|cms|phpmyadmin|pma|admin\.php|adminer\.php)(/.*)?$
+	handle @trap {
+		vars is_trap yes
+		request_body {
+			max_size 16KB
+		}
+		rewrite * /trap
+		reverse_proxy 127.0.0.1:8787 {
+			header_up X-Real-IP {remote_host}
+			header_up -X-Forwarded-For
+			header_up X-Trap-Path {http.request.orig_uri}
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 15s
+			}
+		}
+	}
+
+	# 构建时已经生成了 .br / .gz，直接发送压缩好的文件
+	file_server {
+		precompressed br gzip
+	}
+
+	# 文件名带内容哈希，可以缓存一年；页面每次都向服务器确认有没有新版本
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@pages not path /assets/* /images/* /videos/* /media/* /api/* /ADMIN_PATH/api/*
+	header @pages Cache-Control "no-cache"
+	# 图片原图和视频：文件名不带哈希，缓存一天（视频拖进度条用的分段请求 Caddy 默认支持）
+	@media path /images/* /videos/* /media/*
+	header @media Cache-Control "public, max-age=86400"
+
+	# 后台不让搜索引擎收录
+	@admin path /ADMIN_PATH/*
+	header @admin X-Robots-Tag "noindex, nofollow"
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# 浏览器以后只用 HTTPS 访问；不许别的网站用 iframe 嵌入；用不到的浏览器权限都关掉
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Frame-Options DENY
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	handle_errors {
+		# 错误响应不能被长期缓存
+		header Cache-Control "no-cache"
+		# 接口的错误（内容太大、服务没在运行）也回 JSON，页面能显示原因；不存在的地址照常 404
+		@api_big `(path('/api/*') || path('/ADMIN_PATH/api/*')) && {err.status_code} == 413`
+		handle @api_big {
+			header Content-Type "application/json; charset=utf-8"
+			respond `{"error":"too_large","message":"内容太大了"}` 413
+		}
+		@admin_down `path('/ADMIN_PATH/api/*') && {err.status_code} >= 500`
+		handle @admin_down {
+			header Content-Type "application/json; charset=utf-8"
+			respond `{"error":"unavailable","message":"后台服务没有运行"}` 503
+		}
+		@trap_down `{vars.is_trap} == 'yes' && {err.status_code} >= 500`
+		handle @trap_down {
+			# 评论服务没在运行时，照样显示那个登录页
+			rewrite * /_trap/index.html
+			file_server {
+				status 200
+			}
+		}
+		@api `path('/api/*') && {err.status_code} >= 500`
+		handle @api {
+			header Content-Type "application/json; charset=utf-8"
+			respond `{"error":"unavailable","message":"评论服务暂时不可用，请稍后再试"}` 503
+		}
+		@notfound expression `{err.status_code} == 404`
+		handle @notfound {
+			rewrite * /404.html
+			file_server {
+				precompressed br gzip
+			}
+		}
+	}
+}

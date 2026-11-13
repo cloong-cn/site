@@ -1,0 +1,11 @@
+# 每天凌晨 4 点左右备份一次（关机错过了，开机后补上）
+[Unit]
+Description=Daily blog backup
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=20m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

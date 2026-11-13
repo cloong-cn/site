@@ -1,0 +1,13 @@
+# 备份数据库和图片（deploy/backup.sh 安装成 /usr/local/sbin/blog-backup）。由 blog-backup.timer 每天运行
+[Unit]
+Description=Blog backup (database and pictures)
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/blog-backup
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=yes
+ProtectHome=yes
+NoNewPrivileges=yes

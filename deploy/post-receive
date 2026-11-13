@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# git push 自动部署代码。放到服务器上的裸仓库里：/srv/blog/repo.git/hooks/post-receive，并且 chmod +x
+#
+# 文章和主页内容在数据库里（在后台写、在后台发布），仓库里只有网站的代码。每次 git push 到 main 分支：
+#   1. 把代码检出到 /srv/blog/src
+#   2. package.json 有变化时才重新装依赖
+#   3. 用新代码和已发布的内容重新构建（deploy/build-site.sh），成功后一步切换上线；构建失败就保持旧版本
+#   4. server/ 有变化时重新编译评论和后台服务并重启
+# 推送时这些步骤的输出会直接显示在你本地的终端里。
+set -euo pipefail
+
+BRANCH=main
+BASE="${BLOG_BASE:-/srv/blog}"
+SRC="$BASE/src"
+JAR_DIR="${BLOG_JAR_DIR:-/opt/blog}"   # 评论和后台服务的程序放在这里（见 README「评论和后台」）
+
+export GIT_DIR="$(cd "${GIT_DIR:-.}" && pwd)"
+unset GIT_WORK_TREE
+
+say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
+
+command -v node >/dev/null || { echo "服务器上找不到 node（需要 20.9 或更新）。用 nvm 装的话推送时读不到，见 README「自动部署」" >&2; exit 1; }
+
+# 同一时间只跑一个构建（后台发布也用这把锁），连续推送时排队
+exec 9>"$BASE/.deploy.lock"
+flock 9
+
+while read -r old new ref; do
+  if [ "$ref" != "refs/heads/$BRANCH" ]; then
+    echo "收到 $ref，只有 $BRANCH 分支会部署，跳过"
+    continue
+  fi
+  if [ "$new" = "0000000000000000000000000000000000000000" ]; then
+    echo "$BRANCH 分支被删除了，网站保持不变"
+    continue
+  fi
+
+  say "检出 ${new:0:7}"
+  mkdir -p "$SRC"
+  cd "$SRC"
+  # 工作目录和这次提交完全一致：新增、修改、删除的文件都同步过去；依赖和图片缓存（让构建快很多）保留
+  git --work-tree="$SRC" read-tree --reset -u "$new"
+  git --work-tree="$SRC" clean -fdq -e node_modules -e .cache -e .deploy-commit
+  echo "$new" > "$SRC/.deploy-commit"
+
+  deps_hash="$({ cat package.json; cat package-lock.json 2>/dev/null || true; } | sha256sum | cut -c1-16)"
+  if [ ! -d node_modules ] || [ "$(cat node_modules/.deploy-hash 2>/dev/null)" != "$deps_hash" ]; then
+    say "安装依赖"
+    if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+    echo "$deps_hash" > node_modules/.deploy-hash
+  fi
+
+  say "构建"
+  if ! bash "$SRC/deploy/build-site.sh" "代码 ${new:0:7}：$(git log -1 --format=%s "$new")"; then
+    echo "修好后再推送一次就行。" >&2
+    exit 1
+  fi
+
+  # 评论和后台服务：只有它们的代码变了才重新编译、重启
+  if [ "$old" = "0000000000000000000000000000000000000000" ] || ! git diff --quiet "$old" "$new" -- server; then
+    if [ -d "$JAR_DIR" ] && [ -w "$JAR_DIR" ] && command -v javac >/dev/null; then
+      say "服务端代码有更新，重新编译"
+      ./server/build.sh
+      install -m 644 server/build/blog-server.jar "$JAR_DIR/blog-server.jar.new"
+      mv -f "$JAR_DIR/blog-server.jar.new" "$JAR_DIR/blog-server.jar"
+      for svc in blog-comments blog-admin; do
+        if sudo -n systemctl restart "$svc" 2>/dev/null; then say "$svc 已重启"; else echo "$svc 需要重启：sudo systemctl restart $svc"; fi
+      done
+    else
+      echo "服务端代码有变化，这台服务器还没按 README「评论和后台」装好，跳过"
+    fi
+  fi
+done
