@@ -1,0 +1,90 @@
+{
+  "name": "Kai Lin",
+  "brand": "Kai Lin",
+  "role": "Java Full-Stack Developer",
+  "title": "Kai Lin · Java 全栈开发",
+  "description": "Kai Lin 的个人网站。Java 全栈开发，写后端、架构和折腾服务器的笔记，也在这里放自己做的东西。",
+  "hero": {
+    "intro": "Java 全栈开发。写后端，也写前端，在自己的服务器上把想法做成能用的东西。",
+    "now": "把这个网站的构建过程整理成文章"
+  },
+  "links": [
+    {
+      "label": "GitHub",
+      "href": "https://github.com/2738506523"
+    },
+    {
+      "label": "X",
+      "href": "https://x.com/2738506523"
+    }
+  ],
+  "blog": {
+    "lead": "后端、架构，和折腾服务器的笔记。"
+  },
+  "work": {
+    "lead": "最近做的几样东西，都跑在这个网站上。",
+    "projects": [
+      {
+        "name": "首页的星球",
+        "desc": "一个片元着色器画出整个首屏：星球、地平线的光、按当地时间升起的日月和偶尔划过的流星。这里就是它本身，鼠标移过地平线试试。",
+        "stack": "WebGL · GLSL",
+        "source": "",
+        "demo": "",
+        "image": "",
+        "live": "planet"
+      },
+      {
+        "name": "这个网站",
+        "desc": "不依赖前端框架的主页和博客。Node 构建出纯静态页面，图片和中文字体都在构建时按需裁剪，访客只下载用得到的那一点。",
+        "stack": "Node.js · HTML · CSS",
+        "source": "",
+        "demo": "",
+        "image": "/images/work/site.png"
+      },
+      {
+        "name": "博客后台与评论服务",
+        "desc": "Java 21 写的两个小服务，不依赖任何第三方库：写作、发布、历史版本、评论审核、每日备份，权限按系统账号和数据库角色分开。",
+        "stack": "Java 21 · PostgreSQL · systemd",
+        "source": "",
+        "demo": "",
+        "image": "/images/work/comments.png"
+      },
+      {
+        "name": "PostgreSQL 协议客户端",
+        "desc": "为了不引入 JDBC 驱动，按 PostgreSQL 的通信协议自己实现了一个精简客户端：SCRAM-SHA-256 登录、参数绑定、事务。",
+        "stack": "Java · TCP · SCRAM",
+        "source": "",
+        "demo": "",
+        "image": "/images/work/pg-client.png"
+      }
+    ]
+  },
+  "lab": {
+    "lead": "跑在自己服务器上的服务。",
+    "services": [
+      {
+        "name": "博客后台",
+        "host": "",
+        "status": "up"
+      },
+      {
+        "name": "评论服务",
+        "host": "",
+        "status": "up"
+      },
+      {
+        "name": "每日备份",
+        "host": "",
+        "status": "up"
+      }
+    ]
+  },
+  "about": {
+    "statement": "我是 Kai，一名 Java 全栈开发者，住在台北。白天写后端服务，晚上折腾自己的服务器。喜欢把东西做得简洁、可靠，能自己掌控的部分尽量自己写，然后把过程记下来。",
+    "facts": [
+      ["职业", "Java 全栈开发"],
+      ["所在", "台北"],
+      ["时区", "UTC+8"]
+    ]
+  }
+}
