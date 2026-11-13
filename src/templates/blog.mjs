@@ -199,7 +199,7 @@ export function postPage(cfg, ctx, post, older, newer) {
     description: post.description,
     ogType: 'article',
     image: post.share ? `${cfg.url}/assets/${post.share}` : undefined,
-    head: `<meta property="article:published_time" content="${ymd(post.date)}">\n${post.tags.map((t) => `<meta property="article:tag" content="${esc(t)}">`).join('\n')}`,
+    head: `<meta property="article:published_time" content="${ymd(post.date)}">\n${post.updated ? `<meta property="article:modified_time" content="${ymd(post.updated)}">\n` : ''}${post.tags.map((t) => `<meta property="article:tag" content="${esc(t)}">`).join('\n')}`,
     /* structured data: search engines show the date and author with the result */
     data: {
       '@context': 'https://schema.org',
@@ -207,6 +207,7 @@ export function postPage(cfg, ctx, post, older, newer) {
       headline: post.title,
       description: post.description,
       datePublished: ymd(post.date),
+      ...(post.updated ? { dateModified: ymd(post.updated) } : {}),
       inLanguage: cfg.lang,
       url: `${cfg.url}/blog/${encodeURI(post.slug)}/`,
       mainEntityOfPage: `${cfg.url}/blog/${encodeURI(post.slug)}/`,
@@ -219,14 +220,18 @@ export function postPage(cfg, ctx, post, older, newer) {
 <main id="main" class="page-main">
 <article class="article">
 <a class="back" href="${ctx.href(BLOG)}">${icon.back} 博客</a>
-<div class="article-meta"><time datetime="${ymd(post.date)}">${longDate(post.date)}</time><span>阅读约 ${post.minutes} 分钟</span></div>
+<div class="article-bar"><p class="article-meta"><time datetime="${ymd(post.date)}">${longDate(post.date)}</time>${post.updated ? `<span>更新于 <time datetime="${ymd(post.updated)}">${longDate(post.updated)}</time></span>` : ''}<span>约 ${wan(post.words || 0)}</span><span>阅读约 ${post.minutes} 分钟</span></p></div>
 <h1 class="article-title" id="article-title">${esc(post.title)}</h1>
 ${post.description ? `<p class="article-lead">${esc(post.description)}</p>` : ''}
 ${post.tags.length ? `<div class="article-tags">${post.tags.map((t) => `<a href="${tagHref(ctx, t)}">${esc(t)}</a>`).join('')}</div>` : ''}
+<p class="age-note" data-age="${ymd(post.updated || post.date)}"${post.updated ? ' data-updated' : ''} hidden></p>
+${series(ctx, post)}
 <div class="prose">
 ${post.html}
 </div>
+${seriesNext(ctx, post)}
 ${backlinks(ctx, post)}
+${related(ctx, post)}
 ${refData(post)}
 ${older || newer ? `<nav class="post-nav" aria-label="其他文章">
 ${older ? `<a class="prev" href="${ctx.href(`/blog/${older.slug}/`)}"><span class="label">上一篇</span><span class="t">${esc(older.title)}</span></a>` : ''}
@@ -239,6 +244,41 @@ ${comments(cfg, ctx, post)}
 ${toc.length ? rulerNav({ side: cfg.navSide === 'right' ? 'right' : 'left', kind: 'toc', label: '文章目录', head: '目录', progress: true, items: toc }) : ''}`,
     scripts: ['site-blog.js'],
   };
+}
+
+/* `series: 名称` in several articles: every part, oldest first, this one marked; folded to the nearest few when long */
+function series(ctx, post) {
+  const list = post.seriesPosts;
+  if (!list) return '';
+  const at = list.indexOf(post);
+  const near = (i) => list.length <= 6 || Math.abs(i - at) <= 2 || i === 0 || i === list.length - 1;
+  return `<nav class="series" aria-label="系列：${esc(post.series)}">
+<p class="series-head"><span class="series-label">系列</span><span class="series-name">${esc(post.series)}</span><span class="series-pos num">第 ${at + 1} 篇，共 ${list.length} 篇</span></p>
+<ol class="series-list">${list.map((p, i) => `<li${near(i) ? '' : ' class="is-far"'}>${p === post ? `<span class="series-item is-current" aria-current="page"><span class="series-n num">${i + 1}</span>${esc(p.title)}</span>` : `<a class="series-item" href="${ctx.href(`${BLOG}${p.slug}/`)}"><span class="series-n num">${i + 1}</span>${esc(p.title)}</a>`}</li>`).join('')}</ol>
+${list.some((p, i) => !near(i)) ? `<button class="series-more" type="button" data-series-more>显示全部 ${list.length} 篇</button>` : ''}
+</nav>`;
+}
+
+/* at the end of a part, the way on to the next one */
+function seriesNext(ctx, post) {
+  const list = post.seriesPosts;
+  const next = list && list[list.indexOf(post) + 1];
+  if (!next) return '';
+  return `<a class="series-next" href="${ctx.href(`${BLOG}${next.slug}/`)}"><span class="series-next-label">「${esc(post.series)}」下一篇</span><span class="series-next-t">${esc(next.title)}</span>${icon.arrow}</a>`;
+}
+
+/* articles on the same subjects (build.mjs, relate) */
+function related(ctx, post) {
+  const list = post.related || [];
+  if (!list.length) return '';
+  return `<section class="related" aria-labelledby="related-title">
+<h2 class="bl-title" id="related-title">相关文章</h2>
+<ul class="rel-list">${list.map((p) => `<li><a class="rel-item" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+<span class="rel-t">${esc(p.title)}</span>
+${p.description ? `<span class="rel-d">${esc(p.description)}</span>` : ''}
+<span class="rel-m"><time class="num" datetime="${ymd(p.date)}">${ymd(p.date)}</time>${p.tags.length ? `<span>${esc(p.tags.join(' · '))}</span>` : ''}</span>
+</a></li>`).join('')}</ul>
+</section>`;
 }
 
 /* the other articles that link to this one (build.mjs, linkPosts), each with the words around its link */
@@ -407,6 +447,8 @@ export function adminPage(cfg, ctx) {
 ${field('tags', '标签（用逗号隔开）').replace('cm-field', 'cm-field ed-tags')}
 ${field('description', '摘要（不写就用正文第一段）', 'maxlength="300"').replace('cm-field', 'cm-field ed-desc')}
 ${field('cover', '分享图（不写就用文章第一张图）', 'spellcheck="false"').replace('cm-field', 'cm-field ed-cover')}
+${field('series', '系列（同名的文章连成一组，可不写）', 'maxlength="60"').replace('cm-field', 'cm-field ed-series')}
+<label class="cm-field ed-date ed-updated"><input name="updated" type="date" placeholder=" "><span class="cm-label">更新日期（大改过再填）</span></label>
 <label class="ed-check"><input type="checkbox" name="comments"> 允许评论</label>
 </div>
 <p class="ed-note" data-ed-slug-note hidden></p>

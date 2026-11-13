@@ -1,6 +1,7 @@
 ---
 title: 图集怎么用
 date: 2026-11-08
+series: 博客使用指南
 description: 把照片整理成带时间轴的图集，再引用到文章里。这是一篇草稿，只在本地预览里看得到。
 tags: [写作]
 draft: true

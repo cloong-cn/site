@@ -1,6 +1,7 @@
 ---
 title: 代码块：仿 Xcode 的语法高亮
 date: 2026-10-24
+series: 博客使用指南
 tags: [Java, 博客]
 description: 博客里代码块的样子：Xcode 配色、文件名、高亮行、行号、折叠和复制按钮，以及 Java、Kotlin、SQL、YAML 这些常用语言的效果。
 ---

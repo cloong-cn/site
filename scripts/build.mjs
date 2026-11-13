@@ -114,7 +114,54 @@ const wikilink = {
   renderer: (t) => `W${encodeURIComponent(JSON.stringify([t.to, t.part, t.label]))}`,
 };
 
-/* GitHub-style notes: a quote that starts with [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] */
+/* footnotes, as GitHub and Obsidian write them: [^1] in the text, and somewhere (usually at the end) a line of its own
+   "[^1]: the note", whose next lines belong to it when indented. They are numbered in the order they are first
+   referred to, and listed under the article (footnoteList). One article at a time: loadPosts() resets this */
+let fn = null;
+const resetFootnotes = () => { fn = { order: [], defs: new Map(), refs: new Map() }; };
+const fnNum = (id) => { if (!fn.order.includes(id)) fn.order.push(id); return fn.order.indexOf(id) + 1; };
+const footnoteDef = {
+  name: 'footnoteDef',
+  level: 'block',
+  start: (src) => { const m = /^\[\^[^\]\s]+\]:/m.exec(src); return m ? m.index : undefined; },
+  tokenizer(src) {
+    const m = /^\[\^([^\]\s]+)\]:[ \t]*([^\n]*(?:\n(?:[ \t]{2,}|\t)[^\n]*)*)(?:\n+|$)/.exec(src);
+    if (m) return { type: 'footnoteDef', raw: m[0], id: m[1], tokens: this.lexer.inlineTokens(m[2].replace(/\n[ \t]+/g, '\n')) };
+  },
+  renderer(t) { fn.defs.set(t.id, this.parser.parseInline(t.tokens)); return ''; },
+};
+const footnoteRef = {
+  name: 'footnoteRef',
+  level: 'inline',
+  start: (src) => src.indexOf('[^'),
+  tokenizer(src) {
+    const m = /^\[\^([^\]\s]+)\](?!:)/.exec(src);
+    if (m) return { type: 'footnoteRef', raw: m[0], id: m[1] };
+  },
+  renderer(t) {
+    const n = fnNum(t.id), k = (fn.refs.get(t.id) || 0) + 1;
+    fn.refs.set(t.id, k);
+    /* U+2060 (word joiner): the number stays on the line of the word it belongs to */
+    return `⁠<sup class="fn-ref" id="fnref-${n}${k > 1 ? '-' + k : ''}"><a href="#fn-${n}" data-fn="${n}" aria-label="注释 ${n}">${n}</a></sup>`;
+  },
+};
+/* the notes under the article, each with a way back to where it was referred to */
+function footnoteList(file) {
+  if (!fn.order.length) return '';
+  const items = fn.order.map((id, i) => {
+    const n = i + 1;
+    const body = fn.defs.get(id);
+    if (body == null) linkNotes.push(`文章 ${file.replace(/\.md$/, '')}：脚注 [^${id}] 只在正文里用了，没有写内容（[^${id}]: …）`);
+    const back = Array.from({ length: fn.refs.get(id) || 1 }, (_, k) => `<a class="fn-back" href="#fnref-${n}${k ? '-' + (k + 1) : ''}" aria-label="回到正文第 ${k + 1} 处">↩${k ? `<sup>${k + 1}</sup>` : ''}</a>`).join('');
+    return `<li id="fn-${n}"><p>${body ?? ''} ${back}</p></li>`;
+  });
+  for (const id of fn.defs.keys()) if (!fn.order.includes(id)) linkNotes.push(`文章 ${file.replace(/\.md$/, '')}：脚注 [^${id}] 写了内容，但正文里没有用到`);
+  return `<section class="footnotes" aria-label="注释"><p class="fn-title">注释</p><ol>${items.join('')}</ol></section>`;
+}
+
+/* GitHub-style notes: a quote that starts with [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION].
+   As in Obsidian, words after the marker are the note's own title, and [!TIP]- or [!TIP]+ makes it fold (closed or
+   open); Obsidian's other names for the same five are understood too */
 const CALLOUTS = {
   NOTE: ['说明', '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.4"/>'],
   TIP: ['提示', '<path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>'],
@@ -122,11 +169,12 @@ const CALLOUTS = {
   WARNING: ['注意', '<path d="M10.3 4.2 2.8 17.5A2 2 0 0 0 4.5 20.5h15a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4"/><path d="M12 16.8v.2"/>'],
   CAUTION: ['警告', '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 8v5"/><path d="M12 16v.2"/>'],
 };
+const CALLOUT_ALIAS = { INFO: 'NOTE', ABSTRACT: 'NOTE', SUMMARY: 'NOTE', TODO: 'NOTE', QUOTE: 'NOTE', EXAMPLE: 'NOTE', HINT: 'TIP', SUCCESS: 'TIP', CHECK: 'TIP', DONE: 'TIP', QUESTION: 'IMPORTANT', HELP: 'IMPORTANT', FAQ: 'IMPORTANT', ATTENTION: 'WARNING', FAILURE: 'CAUTION', FAIL: 'CAUTION', MISSING: 'CAUTION', DANGER: 'CAUTION', ERROR: 'CAUTION', BUG: 'CAUTION' };
 /* a line break in the source between two Chinese characters is not a space: browsers would show one */
 const CJK_BREAK = /([⺀-鿿豈-﫿＀-￯])\n(?=[⺀-鿿豈-﫿＀-￯])/g;
 function enhance(html) {
   const used = new Set();
-  return html
+  return callouts(html)
     .replace(/<(p|li|td|th)>([\s\S]*?)<\/\1>/g, (m, tag, inner) => /<pre[\s>]/.test(inner) ? m : `<${tag}>${inner.replace(CJK_BREAK, '$1')}</${tag}>`)
     .replace(/<h([234])>([\s\S]*?)<\/h\1>/g, (m, level, inner) => {
       let id = slugify(inner), n = 2;
@@ -137,15 +185,31 @@ function enhance(html) {
     .replace(/<a href="(https?:\/\/[^"]+)"/g, '<a href="$1" target="_blank" rel="noopener"')
     /* links within the site are resolved per page (the preview build uses relative paths) */
     .replace(/<a href="(\/[^"]*)"/g, '<a href="\uE000H$1\uE000"')
-    .replace(/<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([\s\S]*?)<\/blockquote>/g, (m, type, rest) => {
-      let body = rest.replace(/^\s*<\/p>\s*/, ''); /* the marker stood in a paragraph of its own */
-      if (!/^\s*</.test(body)) body = '<p>' + body.replace(/^\s+/, ''); /* the text went on in the same paragraph */
-      const [label, icon] = CALLOUTS[type];
-      return `<aside class="callout is-${type.toLowerCase()}" role="note"><p class="callout-title"><svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>${label}</p>${body}</aside>`;
-    })
     /* wide tables scroll sideways inside the column instead of stretching the page */
     .replace(/<table>/g, '<div class="table-wrap"><table>')
     .replace(/<\/table>/g, '</table></div>');
+}
+
+/* > [!TIP] \u2026: run before enhance() joins Chinese lines, while the line break that ends a note's title is still there */
+function callouts(html) {
+  return html
+    .replace(/<blockquote>\s*<p>\[!([A-Za-z]+)\]([\s\S]*?)<\/blockquote>/g, (m, name, rest) => {
+      const type = CALLOUT_ALIAS[name.toUpperCase()] || name.toUpperCase();
+      if (!CALLOUTS[type]) return m;
+      let fold = '';
+      if (/^[+-]/.test(rest)) { fold = rest[0]; rest = rest.slice(1); }
+      /* a title on the marker's own line */
+      const t = /^[ \t]*([^\n<]*?)[ \t]*(?=\n|<\/p>)/.exec(rest);
+      const title = t && t[1] ? t[1] : '';
+      if (title) rest = rest.slice(t[0].length);
+      let body = rest.replace(/^\s*<\/p>\s*/, ''); /* the marker stood in a paragraph of its own */
+      /* the text went on in the same paragraph (it may start with <code> or <a>: only a block tag means it did not) */
+      if (body.trim() && !/^\s*<(p|ul|ol|pre|div|table|blockquote|h[1-6]|figure|details|aside|hr)\b/i.test(body)) body = '<p>' + body.replace(/^\s+/, '');
+      const [label, icon] = CALLOUTS[type];
+      const head = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>${title || label}`;
+      if (fold) return `<details class="callout is-${type.toLowerCase()}"${fold === '+' ? ' open' : ''}><summary class="callout-title">${head}<svg class="callout-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></summary><div class="callout-body">${body}</div></details>`;
+      return `<aside class="callout is-${type.toLowerCase()}" role="note"><p class="callout-title">${head}</p>${body}</aside>`;
+    });
 }
 
 /* Anything in an article that could run code on the page goes: <script>, <style>, <object>…, onerror="…" and other
@@ -199,11 +263,18 @@ function scrubbed(html, file) {
   return clean;
 }
 
+/* an article's Markdown as HTML, its footnotes listed at the end */
+function article(body, file) {
+  resetFootnotes();
+  const html = marked.parse(body);
+  return html + footnoteList(file);
+}
+
 async function loadPosts() {
   const dir = path.join(CONTENT, 'blog');
   if (!existsSync(dir)) return [];
   marked.setOptions({ gfm: true });
-  marked.use({ renderer: { code: (t) => codeBlock(t.text, t.lang) }, extensions: [highlight, wikilink] }); /* code coloured like Xcode, see highlight.mjs */
+  marked.use({ renderer: { code: (t) => codeBlock(t.text, t.lang) }, extensions: [highlight, wikilink, footnoteDef, footnoteRef] }); /* code coloured like Xcode, see highlight.mjs */
   const posts = [];
   for (const file of (await readdir(dir)).filter((f) => f.endsWith('.md')).sort()) {
     const { data, body } = frontmatter(await readFile(path.join(dir, file), 'utf8'));
@@ -212,17 +283,22 @@ async function loadPosts() {
     const text = plainText(body);
     const firstPara = text.split(/\n\s*\n/).map((s) => s.replace(/\s+/g, ' ').trim()).find(Boolean) || '';
     const date = parseDate(data.date);
+    const updated = parseDate(data.updated);
+    if (data.updated && !updated) console.warn(`  ! ${file}: invalid "updated" (use YYYY-MM-DD)`);
     const info = {};
     if (!date) console.warn(`  ! ${file}: missing or invalid "date" (use YYYY-MM-DD)`);
     posts.push({
       slug,
       title: data.title || slug,
       date: date || new Date(0),
+      /* updated: a later day the article was changed; shown beside the date, and for search engines */
+      updated: updated && date && updated > date ? updated : null,
+      series: data.series ? String(data.series).trim() : '',
       tags: Array.isArray(data.tags) ? data.tags : data.tags ? [String(data.tags)] : [],
       description: data.description || (firstPara.length > 120 ? firstPara.slice(0, 118) + '…' : firstPara),
       minutes: readingMinutes(text),
       words: wordCount(text).total,
-      html: embedAlbums(await media.rewrite(enhance(scrubbed(marked.parse(body), file)), info), slug),
+      html: embedAlbums(await media.rewrite(enhance(scrubbed(article(body, file), file)), info), slug),
       draft: data.draft === true,
       comments: data.comments !== false,
       aliases: (Array.isArray(data.aliases) ? data.aliases : []).map(String),
@@ -324,6 +400,25 @@ function linkPosts(posts) {
   for (const src of posts) for (const t of src.links) t.backlinks.push({ post: src, context: around(src.html, t.slug) });
 }
 
+/* series: the articles that share a `series:` name, oldest first. Related: up to three others that share the most
+   tags (newer first among equals), leaving out the series, which has a box of its own */
+function relate(posts) {
+  const series = new Map();
+  for (const p of [...posts].reverse()) if (p.series) (series.get(p.series) || series.set(p.series, []).get(p.series)).push(p);
+  for (const p of posts) {
+    p.seriesPosts = p.series ? series.get(p.series) : null;
+    if (p.seriesPosts && p.seriesPosts.length < 2) p.seriesPosts = null;
+    const tags = new Set(p.tags);
+    p.related = posts
+      .filter((q) => q !== p && !(p.series && q.series === p.series))
+      .map((q) => ({ q, n: q.tags.filter((t) => tags.has(t)).length }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n || b.q.date - a.q.date)
+      .slice(0, 3)
+      .map((x) => x.q);
+  }
+}
+
 /* ----------------------------------------------------------------- assets */
 
 const files = {}; // logical name -> hashed path inside assets/
@@ -370,7 +465,7 @@ async function buildAssets() {
   const js = async (name) => stripJsComments(await readFile(path.join(root, 'src/scripts', name), 'utf8'));
   const bundle = async (...names) => Buffer.from((await Promise.all(names.map(js))).join(';\n'));
   /* the words these scripts put on screen get into each page's Chinese font too */
-  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js', 'linkcard.js']]]) {
+  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js', 'linkcard.js', 'article.js']]]) {
     const buf = await bundle(...parts);
     scriptText[name] = buf.toString();
     await emit(name, buf);
@@ -458,7 +553,7 @@ ${items}
 function sitemap(posts) {
   const latest = posts[0] ? ymd(posts[0].date) : '';
   const shown = albums.filter((a) => !a.draft);
-  const urls = [['/', latest], ['/blog/', latest], ['/blog/archive/', latest], ...posts.map((p) => [`/blog/${encodeURI(p.slug)}/`, ymd(p.date)]), ...(shown.length ? [['/gallery/', '']] : []), ...shown.map((a) => [`/gallery/${encodeURI(a.slug)}/`, ''])];
+  const urls = [['/', latest], ['/blog/', latest], ['/blog/archive/', latest], ...posts.map((p) => [`/blog/${encodeURI(p.slug)}/`, ymd(p.updated || p.date)]), ...(shown.length ? [['/gallery/', '']] : []), ...shown.map((a) => [`/gallery/${encodeURI(a.slug)}/`, ''])];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(([u, d]) => `<url><loc>${cfg.url}${u}</loc>${d ? `<lastmod>${d}</lastmod>` : ''}</url>`).join('\n')}
@@ -550,6 +645,7 @@ cfg.hasGallery = albums.length > 0;
 for (const a of albums) a.share = await media.shareImage(a.cover.src);
 const posts = await loadPosts();
 linkPosts(posts);
+relate(posts);
 const tags = tagIndex(posts);
 /* project screenshots on the home page go through the same image pipeline */
 for (const p of cfg.work?.projects || []) if (p.image && p.image.startsWith('/')) p.media = await media.image(p.image);

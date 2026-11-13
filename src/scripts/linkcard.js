@@ -4,18 +4,35 @@
    onto it and click. Everything it says is in the page already (#ref-data, written by the build): nothing is fetched. */
 (function () {
   'use strict';
+  /* footnotes use the same card: the note itself, read out of the list under the article */
   var data = document.getElementById('ref-data');
   var prose = document.querySelector('.prose');
-  if (!data || !prose) return;
-  var refs;
-  try { refs = JSON.parse(data.textContent); } catch (e) { return; }
+  if (!prose || (!data && !prose.querySelector('a[data-fn]'))) return;
+  var refs = {};
+  try { if (data) refs = JSON.parse(data.textContent); } catch (e) { /* only footnotes then */ }
+  var SEL = 'a[data-ref], a[data-fn]';
 
   var hover = window.matchMedia('(hover: hover) and (pointer: fine)');
   var card = null, owner = null, showT = 0, hideT = 0;
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
+  function note(a) {
+    var li = document.getElementById('fn-' + a.getAttribute('data-fn'));
+    if (!li) return null;
+    var el = document.createElement('div');
+    el.className = 'ref-card glass is-note';
+    el.id = 'ref-card';
+    el.setAttribute('role', 'tooltip');
+    var body = li.querySelector('p') ? li.querySelector('p').cloneNode(true) : li.cloneNode(true);
+    [].forEach.call(body.querySelectorAll('.fn-back'), function (b) { b.remove(); });
+    [].forEach.call(body.querySelectorAll('[id]'), function (x) { x.removeAttribute('id'); });
+    while (body.firstChild) el.appendChild(body.firstChild);
+    return el;
+  }
+
   function build(a) {
+    if (a.hasAttribute('data-fn')) return note(a);
     var r = refs[a.getAttribute('data-ref')];
     if (!r) return null;
     var part = a.getAttribute('data-part');
@@ -92,7 +109,7 @@
 
   prose.addEventListener('pointerover', function (e) {
     if (!hover.matches || e.pointerType === 'touch') return;
-    var a = e.target.closest && e.target.closest('a[data-ref]');
+    var a = e.target.closest && e.target.closest(SEL);
     if (!a || !prose.contains(a)) return;
     clearTimeout(hideT);
     if (owner === a) return;
@@ -102,13 +119,13 @@
     showT = setTimeout(function () { show(a, pt); }, card ? 80 : 380);
   });
   prose.addEventListener('pointerout', function (e) {
-    var a = e.target.closest && e.target.closest('a[data-ref]');
+    var a = e.target.closest && e.target.closest(SEL);
     if (!a || (e.relatedTarget && a.contains(e.relatedTarget))) return;
     clearTimeout(showT);
     if (owner === a) later();
   });
   prose.addEventListener('focusin', function (e) {
-    var a = e.target.closest && e.target.closest('a[data-ref]');
+    var a = e.target.closest && e.target.closest(SEL);
     if (a && a.matches(':focus-visible')) show(a);
   });
   prose.addEventListener('focusout', function (e) { if (owner && e.target === owner) remove(false); });

@@ -414,8 +414,23 @@
       cover: f('cover').value.trim(),
       comments: f('comments').checked,
       body: body.value,
-      extra: st.extra,
+      extra: extraWith(st.extra),
     };
+  }
+  /* 系列 and 更新日期 travel as two lines of the article's other settings ("series: …", "updated: …"), which the
+     server keeps as they are and writes into the file the site is built from */
+  var OWN = /^(series|updated)\s*[:=]/;
+  function extraWith(extra) {
+    var out = (extra || []).filter(function (l) { return !OWN.test(l); });
+    var s = f('series').value.replace(/[\r\n]+/g, ' ').trim(), u = f('updated').value;
+    if (s) out.push('series: ' + s);
+    if (u) out.push('updated: ' + u);
+    return out;
+  }
+  function fromExtra(extra, key) {
+    var re = new RegExp('^' + key + '\\s*[:=]\\s*(.*)$');
+    for (var i = 0; i < (extra || []).length; i++) { var m = re.exec(extra[i]); if (m) return m[1].replace(/^(['"])(.*)\1$/, '$2').trim(); }
+    return '';
   }
   function snap() { return JSON.stringify(payload()); }
   function dirty() { return snap() !== st.saved; }
@@ -428,6 +443,8 @@
     f('description').value = p.description || '';
     f('cover').value = p.cover || '';
     f('comments').checked = p.comments !== false;
+    f('series').value = fromExtra(p.extra, 'series');
+    f('updated').value = fromExtra(p.extra, 'updated');
     body.value = p.body || '';
   }
 
@@ -1219,7 +1236,11 @@
 
   /* ---------------------------------------------------- preview */
   var CALLOUTS = { NOTE: '说明', TIP: '提示', IMPORTANT: '重要', WARNING: '注意', CAUTION: '警告' };
+  /* Obsidian's other names for the same five (as scripts/build.mjs) */
+  var CALLOUT_ALIAS = { INFO: 'NOTE', ABSTRACT: 'NOTE', SUMMARY: 'NOTE', TODO: 'NOTE', QUOTE: 'NOTE', EXAMPLE: 'NOTE', HINT: 'TIP', SUCCESS: 'TIP', CHECK: 'TIP', DONE: 'TIP', QUESTION: 'IMPORTANT', HELP: 'IMPORTANT', FAQ: 'IMPORTANT', ATTENTION: 'WARNING', FAILURE: 'CAUTION', FAIL: 'CAUTION', MISSING: 'CAUTION', DANGER: 'CAUTION', ERROR: 'CAUTION', BUG: 'CAUTION' };
   var mdReady = false;
+  /* footnotes of the article being shown: numbered as they are first used, listed at the end */
+  var fnOrder = [], fnDefs = {};
   function render(md) {
     var m = window.marked;
     if (!m || !m.lexer) return '<pre>' + escHtml(md) + '</pre>';
@@ -1227,6 +1248,26 @@
       m.use({
         gfm: true,
         extensions: [{
+          name: 'footnoteDef', level: 'block',
+          start: function (src) { var x = /^\[\^[^\]\s]+\]:/m.exec(src); return x ? x.index : undefined; },
+          tokenizer: function (src) {
+            var x = /^\[\^([^\]\s]+)\]:[ \t]*([^\n]*(?:\n(?:[ \t]{2,}|\t)[^\n]*)*)(?:\n+|$)/.exec(src);
+            if (x) return { type: 'footnoteDef', raw: x[0], id: x[1], tokens: this.lexer.inlineTokens(x[2].replace(/\n[ \t]+/g, '\n')) };
+          },
+          renderer: function (t) { fnDefs[t.id] = this.parser.parseInline(t.tokens); return ''; },
+        }, {
+          name: 'footnoteRef', level: 'inline',
+          start: function (src) { return src.indexOf('[^'); },
+          tokenizer: function (src) {
+            var x = /^\[\^([^\]\s]+)\](?!:)/.exec(src);
+            if (x) return { type: 'footnoteRef', raw: x[0], id: x[1] };
+          },
+          renderer: function (t) {
+            if (fnOrder.indexOf(t.id) < 0) fnOrder.push(t.id);
+            var n = fnOrder.indexOf(t.id) + 1;
+            return '<sup class="fn-ref"><a href="#fn-' + n + '">' + n + '</a></sup>';
+          },
+        }, {
           name: 'mark', level: 'inline',
           start: function (src) { return src.indexOf('=='); },
           tokenizer: function (src) {
@@ -1257,6 +1298,7 @@
       mdReady = true;
     }
     /* block by block, so each one knows the line it starts on (for scrolling the preview along) */
+    fnOrder = []; fnDefs = {};
     var tokens = m.lexer(md), line = 0, html = '';
     tokens.forEach(function (t) {
       var at = line;
@@ -1266,9 +1308,21 @@
       one.links = tokens.links;
       html += m.parser(one).replace(/^(\s*<[a-z][a-z0-9]*)/i, '$1 data-line="' + at + '"');
     });
+    if (fnOrder.length) {
+      html += '<section class="footnotes"><p class="fn-title">注释</p><ol>' + fnOrder.map(function (id, i) {
+        return '<li id="fn-' + (i + 1) + '"><p>' + (fnDefs[id] != null ? fnDefs[id] : '<span class="wikilink is-missing">（这条脚注还没写内容：[^' + escHtml(id) + ']: …）</span>') + '</p></li>';
+      }).join('') + '</ol></section>';
+    }
     return html
-      .replace(/<blockquote([^>]*)>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*([\s\S]*?)<\/blockquote>/g, function (x, attrs, type, rest) {
-        return '<aside class="callout is-' + type.toLowerCase() + '"' + attrs + '><p class="callout-title">' + CALLOUTS[type] + '</p><p>' + rest + '</aside>';
+      /* > [!TIP] 自己的标题, and [!TIP]- / [!TIP]+ for one that folds */
+      .replace(/<blockquote([^>]*)>\s*<p>\[!([A-Za-z]+)\]([+-]?)([^\n<]*)([\s\S]*?)<\/blockquote>/g, function (x, attrs, name, fold, title, rest) {
+        var type = CALLOUT_ALIAS[name.toUpperCase()] || name.toUpperCase();
+        if (!CALLOUTS[type]) return x;
+        var label = title.trim() || CALLOUTS[type];
+        var body = rest.replace(/^\s*<\/p>\s*/, '');
+        if (body.trim() && !/^\s*<(p|ul|ol|pre|div|table|blockquote|h[1-6]|figure|details|aside|hr)\b/i.test(body)) body = '<p>' + body.replace(/^\s+/, '');
+        if (fold) return '<details class="callout is-' + type.toLowerCase() + '"' + attrs + (fold === '+' ? ' open' : '') + '><summary class="callout-title">' + label + '</summary><div class="callout-body">' + body + '</div></details>';
+        return '<aside class="callout is-' + type.toLowerCase() + '"' + attrs + '><p class="callout-title">' + label + '</p>' + body + '</aside>';
       })
       /* an album in an article: shown only by the build, which is what has its photos */
       .replace(/<p([^>]*)>::gallery\[([^\]\s<]+)\](?:\{show=(\d+)\})?<\/p>/g, function (x, attrs, name, n) {

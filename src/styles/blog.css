@@ -190,7 +190,9 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
 .back:hover { color: var(--text); }
 .back svg { transition: transform .3s var(--ease-out); }
 .back:hover svg { transform: translateX(-3px); }
-.article-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 40px; font-size: 13px; color: var(--text-3); }
+/* the date and the rest on the left, the share button on the right */
+.article-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; margin-top: 40px; }
+.article-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--text-3); }
 .article-title { margin-top: 14px; font: 600 clamp(34px, 5vw, 56px)/1.16 var(--font-display); letter-spacing: -.02em; }
 .article-lead { margin-top: 20px; font-size: 19px; line-height: 1.7; color: var(--text-2); }
 .article-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
@@ -254,6 +256,41 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
 .callout-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: .02em; color: var(--c); }
 .callout-title svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .prose .callout .callout-title + * { margin-top: .4em; }
+/* a note that folds ([!TIP]- / [!TIP]+): its title is the switch, a chevron turning as it opens */
+.prose details.callout { padding: 0; }
+.prose details.callout > summary { padding: 14px 20px; border-radius: var(--r-md); cursor: pointer; list-style: none; transition: background-color .2s; }
+.prose details.callout > summary::-webkit-details-marker { display: none; }
+.prose details.callout > summary:hover { background: color-mix(in srgb, var(--c) 6%, transparent); }
+.prose details.callout[open] > summary { border-radius: var(--r-md) var(--r-md) 0 0; }
+.callout-chev { margin-left: auto; transition: transform .3s var(--ease-out); }
+.prose details.callout[open] .callout-chev { transform: rotate(90deg); }
+.prose .callout-body { padding: 0 20px 18px; }
+.prose .callout-body > * + * { margin-top: .6em; }
+/* <details><summary>…</summary>…</details> written into an article: the same fold, quieter */
+.prose details:not(.callout) { border-radius: var(--r-md); background: var(--surface); }
+.prose details:not(.callout) > summary { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: var(--r-md); font-weight: 600; cursor: pointer; list-style: none; }
+.prose details:not(.callout) > summary::-webkit-details-marker { display: none; }
+.prose details:not(.callout) > summary::before { content: ""; flex: none; width: 7px; height: 7px; margin: 0 2px; border-right: 1.6px solid var(--text-3); border-bottom: 1.6px solid var(--text-3); transform: rotate(-45deg); transition: transform .3s var(--ease-out); }
+.prose details:not(.callout)[open] > summary::before { transform: rotate(45deg); }
+.prose details:not(.callout) > :not(summary) { margin: 0 20px; }
+.prose details:not(.callout) > :not(summary):last-child { padding-bottom: 18px; }
+.prose details:not(.callout) > summary + * { margin-top: 0; }
+
+/* footnotes: a small blue number in the text, the notes listed under the article */
+.prose .fn-ref { font-size: .72em; line-height: 0; vertical-align: super; }
+/* inline, not inline-block: a box would let the line break between the number and a "。" after it */
+.prose .fn-ref a { display: inline; padding: .05em .4em; margin: 0 .1em; border-radius: 6px; background: color-mix(in srgb, var(--link) 12%, transparent); text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.prose .fn-ref a:hover { text-decoration: none; background: color-mix(in srgb, var(--link) 22%, transparent); }
+.prose .footnotes { margin-top: 3em; padding-top: 1.4em; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.75; color: var(--text-2); }
+.prose .fn-title { font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--text-3); }
+.prose .footnotes ol { margin-top: .8em; padding-left: 1.6em; }
+.prose .footnotes li { scroll-margin-top: 96px; border-radius: 8px; transition: background-color .6s; }
+.prose .footnotes li > p { margin: 0; }
+.prose .fn-back { margin-left: .3em; font-size: .9em; }
+.prose .fn-back sup { font-size: .7em; }
+/* the note or the place in the text that was just jumped to, lit for a moment */
+.prose .footnotes li:target, .prose .fn-ref:target a { background: color-mix(in srgb, var(--link) 16%, transparent); }
+.prose .fn-ref, .prose .fn-ref a { scroll-margin-top: 120px; }
 
 /* code */
 .prose code { padding: .12em .42em; border-radius: 6px; background: var(--surface); font: 500 .86em/1.5 var(--font-mono); }
@@ -656,6 +693,63 @@ html.lb-lock { overflow: hidden; }
 .rc-s { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin-top: 8px; font-size: 14px; line-height: 1.65; color: var(--text-2); }
 .rc-tags { margin-top: 10px; font-size: 12px; color: var(--text-3); }
 @media (prefers-reduced-motion: reduce) { .ref-card, .ref-card.is-out { animation-duration: .01s; } }
+.ref-card.is-note { --r: var(--r-sm); width: min(380px, calc(100vw - 32px)); padding: 14px 16px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
+.ref-card.is-note a { color: var(--link); }
+.ref-card.is-note code { padding: .1em .35em; border-radius: 5px; background: var(--surface); font: 500 .88em var(--font-mono); }
+
+/* ---------- around the article ---------- */
+/* written long ago (article.js decides, so the age is right on the day it is read) */
+.age-note { display: flex; gap: 10px; margin-top: 28px; padding: 12px 16px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--c-warning) 9%, var(--surface)); font-size: 14px; line-height: 1.7; color: var(--text-2); }
+.age-note::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: .72em; border-radius: 50%; background: var(--c-warning); }
+
+/* a series: the parts in order, this one marked */
+.series { margin-top: 28px; padding: 18px 20px 14px; border-radius: var(--r-md); background: var(--surface); }
+.series-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.series-label { font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--link); }
+.series-name { font-size: 16px; font-weight: 600; }
+.series-pos { margin-left: auto; font-size: 13px; color: var(--text-3); }
+.series-list { margin-top: 10px; }
+.series-item { display: flex; gap: 12px; padding: 7px 8px; margin: 0 -8px; border-radius: 10px; font-size: 15px; line-height: 1.5; color: var(--text-2); transition: background-color .2s, color .2s; }
+a.series-item:hover { background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
+.series-item.is-current { color: var(--text); font-weight: 600; }
+.series-n { flex: none; min-width: 1.6em; color: var(--text-3); font-weight: 500; }
+.series-item.is-current .series-n { color: var(--link); }
+.series:not(.is-all) .is-far { display: none; }
+.series-more { margin-top: 4px; padding: 6px 0; border: 0; background: none; color: var(--link); font-size: 13px; cursor: pointer; }
+.series-next { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 48px; padding: 18px 22px; border-radius: var(--r-md); background: color-mix(in srgb, var(--link) 9%, var(--surface)); transition: background-color .25s, transform .3s var(--ease-spring); }
+.series-next:hover { background: color-mix(in srgb, var(--link) 14%, var(--surface)); }
+.series-next:active { transform: scale(.985); transition-duration: .1s; }
+.series-next-label { width: 100%; font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--link); }
+.series-next-t { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; line-height: 1.45; }
+.series-next .arrow { flex: none; color: var(--link); transition: transform .3s var(--ease-out); }
+.series-next:hover .arrow { transform: translateX(3px); }
+
+/* related articles */
+.related { margin-top: 56px; }
+.backlinks + .related { margin-top: 48px; }
+.related ~ .post-nav { margin-top: 24px; }
+.rel-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 16px; }
+.rel-item { display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 16px 18px; border-radius: var(--r-md); background: var(--surface); transition: background-color .25s, transform .3s var(--ease-spring); }
+.rel-item:hover { background: var(--surface-2); }
+.rel-item:active { transform: scale(.985); transition-duration: .1s; }
+.rel-t { font-size: 15px; font-weight: 600; line-height: 1.5; transition: color .2s; }
+.rel-item:hover .rel-t { color: var(--link); }
+.rel-d { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; line-height: 1.6; color: var(--text-3); }
+.rel-m { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: auto; padding-top: 4px; font-size: 12px; color: var(--text-3); }
+
+/* a small note at the bottom of the screen: "已复制链接" */
+.toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); z-index: 90; display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; font-size: 14px; transform: translateX(-50%); animation: toast-in .3s var(--ease-spring); pointer-events: none; }
+.toast.is-out { animation: toast-out .2s ease-in forwards; }
+.toast svg { color: var(--ok); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(.96); } }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, 6px); } }
+
+/* a heading's link to itself, shown beside it under the pointer */
+.prose :is(h2, h3) { position: relative; }
+.h-anchor { position: absolute; top: 50%; right: 100%; display: grid; place-items: center; width: 28px; height: 28px; margin-right: 4px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-3); cursor: pointer; opacity: 0; transform: translateY(-50%); transition: opacity .2s, color .2s, background-color .2s; }
+.prose :is(h2, h3):hover .h-anchor, .h-anchor:focus-visible { opacity: 1; }
+.h-anchor:hover { color: var(--link); background: color-mix(in srgb, var(--text) 6%, transparent); }
+@media (hover: none), (max-width: 860px) { .h-anchor { display: none; } }
 .article-foot { margin-top: 96px; }
 
 /* ---------- comments ----------
@@ -807,7 +901,7 @@ a.cm-time:hover { color: var(--text-2); }
   .prose .media.is-loading picture img { opacity: 1; }
   /* these marks are drawn as backgrounds, which printers skip unless told otherwise */
   .prose ul > li::before, .prose li > input[type="checkbox"], .prose .line.is-hl::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .topbar, .sidenav, .skip-link, .back, .post-nav, .comments, .article-foot, .vt-overlay, .lightbox, .ref-card,
+  .topbar, .sidenav, .skip-link, .back, .post-nav, .comments, .article-foot, .vt-overlay, .lightbox, .ref-card, .toast, .h-anchor, .age-note,
   .code-copy, .code-fold, .media-zoom, .stack-ui, .player-big, .player-bar { display: none !important; }
   .article { padding-top: 0; }
   .prose a[target="_blank"]:not(:has(img))::after { content: " (" attr(href) ")"; font-size: .8em; vertical-align: baseline; color: var(--text-3); }
