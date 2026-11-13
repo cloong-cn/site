@@ -441,6 +441,14 @@ html:not(.js) .media-ph { display: none; }
 .prose .media.is-small img, .prose .media.is-raw img { border-radius: var(--r-md); }
 .prose .media.is-raw { width: fit-content; max-width: 100%; }
 .prose .media.is-raw img { width: auto; max-width: 100%; }
+/* SVG diagrams: drawn at their own size, never wider than the column. Most are drawn for a white page, dark lines on
+   nothing: in the dark theme they sit on a white sheet, unless there is a version of their own for it (x.dark.svg) */
+.prose .media.is-svg { width: min(100%, var(--w, 100%)); }
+.prose .media.is-svg img { width: 100%; height: auto; border-radius: 0; }
+html[data-theme="dark"] .prose .media.is-svg:not(.has-dark) img { padding: clamp(12px, 3%, 24px); border-radius: var(--r-md); background: #fff; box-sizing: border-box; }
+.prose .media.is-svg .svg-dark, html[data-theme="dark"] .prose .media.has-dark .svg-light { display: none; }
+html[data-theme="dark"] .prose .media.has-dark .svg-dark { display: block; }
+.lightbox img[src$=".svg"]:not([src$=".dark.svg"]) { background: #fff; }
 .prose .media.is-small .media-cap, .prose .media.is-raw .media-cap { position: static; max-width: none; margin-top: 10px; padding: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--text-3); text-align: center; }
 .media-zoom { position: absolute; top: 12px; right: 12px; z-index: 3; width: 32px; height: 32px; opacity: 0; }
 /* round glass buttons: the icon says what will happen before it does */

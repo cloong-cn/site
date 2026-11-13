@@ -104,6 +104,11 @@ yourname.dev {
 	@admin path /ADMIN_PATH/*
 	header @admin X-Robots-Tag "noindex, nofollow"
 
+	# SVG 图片本身是一份文档：有人直接打开它时，里面什么也不许运行、不许加载
+	# （后台上传的 SVG 已经清理过一遍，见 server/src/blog/server/Svg.java；这是第二道）
+	@svg path *.svg
+	header @svg Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; sandbox"
+
 	header {
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin

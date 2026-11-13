@@ -906,7 +906,7 @@
   }
   function uploadFiles(files) {
     Array.prototype.forEach.call(files, function (file) {
-      if (!/^image\//.test(file.type || '') && !/\.(jpe?g|png|webp|gif|avif|heic)$/i.test(file.name)) { note('只能上传图片：' + file.name, 'error'); return; }
+      if (!/^image\//.test(file.type || '') && !/\.(jpe?g|png|webp|gif|avif|heic|svg)$/i.test(file.name)) { note('只能上传图片：' + file.name, 'error'); return; }
       var tag = '![上传中 ' + (file.name || '图片').replace(/[\[\]()]/g, '') + '…]()';
       var at = body.selectionStart;
       edit(at, body.selectionEnd, blankBefore(at) + tag + '\n\n');
@@ -1967,7 +1967,8 @@
   });
   /* one at a time: each is decoded and saved again on the server */
   function alUpload(files) {
-    var list = Array.prototype.filter.call(files, function (f) { return /^image\//.test(f.type || '') || /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(f.name); });
+    /* an album holds photos: an SVG (a diagram) belongs in an article */
+    var list = Array.prototype.filter.call(files, function (f) { return (/^image\//.test(f.type || '') || /\.(jpe?g|png|webp|gif|avif|heic|heif)$/i.test(f.name)) && !/svg/i.test(f.type || '') && !/\.svg$/i.test(f.name); });
     if (!list.length) { note('只能上传图片', 'error'); return; }
     if (alUploading || !al) return;
     alUploading = true;

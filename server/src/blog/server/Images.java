@@ -19,15 +19,18 @@ import java.util.regex.Pattern;
  * PNG, WebP, GIF or AVIF files are taken (decided by their first bytes, not their name or the browser's word), at most
  * 25 MB and 80 megapixels. Each one is decoded and saved again by scripts/clean-image.mjs (sharp): turned upright, and
  * everything but the pixels dropped (location, camera, thumbnails). The name comes from the cleaned picture's content,
- * so the same picture uploaded twice is kept once.
+ * so the same picture uploaded twice is kept once. SVG pictures (diagrams) are taken too: they are not decoded but
+ * read and written again with only what draws (Svg.java), and articles show them as they are, never as photos.
  */
 final class Images {
   private Images() {}
 
   static final int MAX = 25 * 1024 * 1024;
   private static final Pattern RESULT = Pattern.compile("\\{\"format\":\"(jpg|png|webp|gif)\",\"width\":(\\d+),\"height\":(\\d+)(?:,\"taken\":\"(\\d{4}-\\d{2}-\\d{2})\")?\\}");
-  static final Pattern MEDIA = Pattern.compile("\\d{4}/[0-9a-f]{16}\\.(?:jpg|png|webp|gif)");
-  private static final Pattern IMAGES = Pattern.compile("[\\p{L}\\p{N}_./ -]{1,200}\\.(?i:jpe?g|png|webp|gif|avif)");
+  static final Pattern MEDIA = Pattern.compile("\\d{4}/[0-9a-f]{16}\\.(?:jpg|png|webp|gif|svg)");
+  /** An uploaded photo: what an album may hold (an SVG may not). */
+  static final Pattern PHOTO = Pattern.compile("\\d{4}/[0-9a-f]{16}\\.(?:jpg|png|webp|gif)");
+  private static final Pattern IMAGES = Pattern.compile("[\\p{L}\\p{N}_./ -]{1,200}\\.(?i:jpe?g|png|webp|gif|avif|svg)");
 
   /** The kind of picture, from its first bytes; null when it is not one we take. */
   static String sniff(byte[] b) {
@@ -41,6 +44,7 @@ final class Images {
       if (brand.equals("avif") || brand.equals("avis")) return "avif";
       if (brand.startsWith("hei") || brand.startsWith("mif") || brand.equals("msf1")) return "heic";
     }
+    if (Svg.looksLike(b)) return "svg";
     return null;
   }
 
@@ -48,9 +52,10 @@ final class Images {
   static Map<String, Object> accept(Site site, byte[] data) throws IOException {
     String kind = sniff(data);
     if ("heic".equals(kind)) throw new Http.Fail(415, "heic", "iPhone 的 HEIC 照片浏览器大多显示不了，请先导出成 JPG 再上传（在“照片”里分享 → 选项 → 最兼容）");
-    if (kind == null) throw new Http.Fail(415, "not_image", "只能上传 JPG、PNG、WebP、GIF 或 AVIF 图片");
+    if (kind == null) throw new Http.Fail(415, "not_image", "只能上传 JPG、PNG、WebP、GIF、AVIF 或 SVG 图片");
     if (data.length > MAX) throw new Http.Fail(413, "too_large", "图片太大了（最多 25 MB）");
     site.requireReady();
+    if ("svg".equals(kind)) return acceptSvg(site, data);
     Path script = site.src.resolve("scripts/clean-image.mjs");
 
     Path tmp = site.media.resolve(".tmp");
@@ -85,6 +90,27 @@ final class Images {
       Files.deleteIfExists(in);
       for (String e : List.of("jpg", "png", "webp", "gif")) Files.deleteIfExists(Path.of(outBase + "." + e));
     }
+  }
+
+  /* an SVG: cleaned (Svg.java), and named after the cleaned file like the others */
+  private static Map<String, Object> acceptSvg(Site site, byte[] data) throws IOException {
+    Svg.Clean c = Svg.clean(data);
+    String id = HexFormat.of().formatHex(Guard.sha256(c.data()), 0, 8);
+    String rel = Year.now().getValue() + "/" + id + ".svg";
+    Path to = site.media.resolve(rel);
+    Files.createDirectories(to.getParent());
+    if (!Files.exists(to)) { /* else the same picture is already here */
+      Path tmp = site.media.resolve(".tmp");
+      Files.createDirectories(tmp);
+      Path part = tmp.resolve(Guard.randomToken(12).replaceAll("[^A-Za-z0-9]", "x") + ".svg");
+      Files.write(part, c.data());
+      Files.move(part, to, StandardCopyOption.ATOMIC_MOVE);
+    }
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("path", "/media/" + rel);
+    out.put("width", c.width());
+    out.put("height", c.height());
+    return out;
   }
 
   /**
@@ -135,6 +161,7 @@ final class Images {
     if (p.endsWith(".webp")) return "image/webp";
     if (p.endsWith(".gif")) return "image/gif";
     if (p.endsWith(".avif")) return "image/avif";
+    if (p.endsWith(".svg")) return "image/svg+xml";
     return "image/jpeg";
   }
 }

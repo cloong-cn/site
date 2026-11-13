@@ -63,7 +63,11 @@
     var w = Number(img.getAttribute('width')) || img.naturalWidth || 16, h = Number(img.getAttribute('height')) || img.naturalHeight || 9;
     return { w: w, h: h, r: w / h };
   }
-  function mainImg(fig) { return fig.querySelector('picture img, img:not(.media-fill)'); }
+  function mainImg(fig) {
+    /* a diagram with a dark-theme version: the one showing now */
+    if (fig.classList.contains('has-dark')) return fig.querySelector(document.documentElement.getAttribute('data-theme') === 'dark' ? 'img.svg-dark' : 'img.svg-light');
+    return fig.querySelector('picture img, img:not(.media-fill)');
+  }
 
   /* ------------------------------------------------------------ full-screen view */
   var LB = null;

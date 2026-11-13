@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="150" viewBox="0 0 640 150" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 10 5 0 10z" fill="#86868b"/>
+    </marker>
+  </defs>
+  <g stroke="#86868b" stroke-width="1.6" fill="#1d1d20">
+    <rect x="12" y="40" width="160" height="64" rx="14"/>
+    <rect x="240" y="40" width="160" height="64" rx="14" stroke="#2997ff" stroke-width="2"/>
+    <rect x="468" y="40" width="160" height="64" rx="14"/>
+  </g>
+  <g stroke="#86868b" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <path d="M176 72h58"/>
+    <path d="M404 72h58"/>
+  </g>
+  <g fill="#f5f5f7" font-size="17" font-weight="600" text-anchor="middle">
+    <text x="92" y="69">Markdown</text>
+    <text x="320" y="69">npm run build</text>
+    <text x="548" y="69">静态页面</text>
+  </g>
+  <g fill="#86868b" font-size="13" text-anchor="middle">
+    <text x="92" y="90">content/blog/*.md</text>
+    <text x="320" y="90">图片、字体、公式</text>
+    <text x="548" y="90">dist/</text>
+  </g>
+</svg>

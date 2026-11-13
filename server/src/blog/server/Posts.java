@@ -333,7 +333,7 @@ final class Posts {
   /** Uploaded pictures a text uses: /media/2026/abcdef0123456789.jpg → 2026/abcdef0123456789.jpg */
   static List<String> mediaIn(String text) {
     List<String> out = new ArrayList<>();
-    Matcher m = Pattern.compile("/media/(\\d{4}/[0-9a-f]{16}\\.(?:jpg|png|webp|gif))").matcher(text);
+    Matcher m = Pattern.compile("/media/(" + Images.MEDIA.pattern() + ")").matcher(text);
     while (m.find()) if (!out.contains(m.group(1))) out.add(m.group(1));
     return out;
   }

@@ -22,7 +22,7 @@ final class Albums {
   private static final int MAX_DAYS = 1000;
   /* the same names scripts/gallery.mjs takes */
   private static final Pattern SLUG = Pattern.compile("[\\p{L}\\p{N}][\\p{L}\\p{N}_-]{0,79}");
-  private static final Pattern PHOTO = Pattern.compile("/media/(" + Images.MEDIA.pattern() + ")");
+  private static final Pattern PHOTO = Pattern.compile("/media/(" + Images.PHOTO.pattern() + ")");
   private static final Pattern DAY = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
   private static final Pattern MONTH = Pattern.compile("\\d{4}-\\d{2}");
   private static final String MS = "(extract(epoch FROM %s) * 1000)::bigint";

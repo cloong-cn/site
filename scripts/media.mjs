@@ -173,6 +173,28 @@ export async function createMedia({ root, out, log, mediaDir, galleryDir }) {
     return { html, w, h };
   }
 
+  /* an SVG (a diagram, say) stays a vector: shown as it is, sized from its own width/height or viewBox so the page
+     does not jump. diagram.dark.svg next to diagram.svg is the version shown in the dark theme */
+  async function svg(src, alt, cap) {
+    const raw = { kind: 'raw', src: ROOT + encodeURI(src.slice(1)), alt, cap };
+    const file = fileOf(src);
+    if (!file || !existsSync(file)) { warn(src.startsWith('/media/') ? `找不到图片 ${src}（后台上传的图片在 MEDIA_DIR 里）` : `找不到图片 ${src}（应该放在 src/public${src}）`); return raw; }
+    const tag = (/<svg\b[^>]*>/i.exec(await readFile(file, 'utf8')) || [''])[0];
+    const num = (n) => { const m = new RegExp(`\\s${n}\\s*=\\s*["']\\s*([\\d.]+)\\s*(?:px)?\\s*["']`, 'i').exec(tag); return m ? parseFloat(m[1]) : 0; };
+    let w = num('width'), h = num('height');
+    const vb = /\sviewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*["']/i.exec(tag);
+    if ((!w || !h) && vb) {
+      const vw = parseFloat(vb[1]), vh = parseFloat(vb[2]);
+      if (w) h = (w * vh) / vw; else if (h) w = (h * vw) / vh; else { w = vw; h = vh; }
+    }
+    if (!w || !h) warn(`SVG ${src} 里没有写尺寸（width、height 或 viewBox），显示时可能撑满整栏`);
+    const twin = /\.dark\.svg$/i.test(src) ? null : src.replace(/\.svg$/i, '.dark.svg');
+    const twinFile = twin && fileOf(twin);
+    const dark = twinFile && existsSync(twinFile) ? twin : null;
+    for (const s of [src, dark]) if (s && s.startsWith('/media/')) needed.add(s);
+    return { kind: 'svg', src, dark, w: Math.round(w), h: Math.round(h), alt, cap };
+  }
+
   /* one image or video from the article, as data: rendered once we know whether it sits in a stack */
   async function item(attrs) {
     let src = attrs.src || '';
@@ -183,6 +205,7 @@ export async function createMedia({ root, out, log, mediaDir, galleryDir }) {
     try { local = decodeURI(src); } catch { /* keep as written */ }
     if (/\.(heic|heif)$/i.test(local)) warn(`图片 ${local} 是 HEIC 格式，大部分浏览器显示不了：在 iPhone 上导出成 JPG（设置 → 相机 → 格式 → 兼容性最佳），或者用电脑转成 JPG`);
     if (VIDEO.test(local)) return { kind: 'video', ...(await video(local, alt)), cap };
+    if (/\.svg$/i.test(local)) return svg(local, alt, cap);
     const img = await image(local);
     if (!img && local.startsWith('/media/')) needed.add(local);
     return img ? { kind: 'image', img, alt, cap } : { kind: 'raw', src: ROOT + encodeURI(local.slice(1)), alt, cap };
@@ -200,6 +223,11 @@ export async function createMedia({ root, out, log, mediaDir, galleryDir }) {
       return `<figure class="media is-image${small ? ' is-small' : ''}" style="${shape(it.img.w, it.img.h)}">${small ? '' : placeholder(it.img)}${picture(it.img, ASSETS, { alt: it.alt, sizes: SIZES, eager: it.eager })}${caption(it.cap)}</figure>`;
     }
     if (it.kind === 'video') return `<figure class="media is-video"${it.w ? ` style="${shape(it.w, it.h)}"` : ''}>${it.html}${caption(it.cap)}</figure>`;
+    if (it.kind === 'svg') {
+      const size = it.w && it.h ? ` width="${it.w}" height="${it.h}"` : '';
+      const img = (s, cls) => `<img${cls ? ` class="${cls}"` : ''} src="${ROOT}${encodeURI(s.slice(1))}" alt="${escAttr(it.alt)}"${size} loading="lazy" decoding="async">`;
+      return `<figure class="media is-raw is-svg${it.dark ? ' has-dark' : ''}"${it.w && it.h ? ` style="--w:${it.w}px"` : ''}>${img(it.src, it.dark ? 'svg-light' : '')}${it.dark ? img(it.dark, 'svg-dark') : ''}${caption(it.cap)}</figure>`;
+    }
     return `<figure class="media is-raw"><img src="${escAttr(it.src)}" alt="${escAttr(it.alt)}" loading="lazy" decoding="async">${caption(it.cap)}</figure>`;
   }
 
@@ -252,6 +280,7 @@ export async function createMedia({ root, out, log, mediaDir, galleryDir }) {
       const it = await item(attrsOf(m[1]));
       if (it.kind === 'image') inl += `<img class="inline" src="${ASSETS}${it.img.webp[0][0]}" alt="${escAttr(it.alt)}" width="${it.img.w}" height="${it.img.h}" loading="lazy" decoding="async">`;
       else if (it.kind === 'video') inl += figure(it);
+      else if (it.kind === 'svg') inl += `<img class="inline" src="${ROOT}${encodeURI(it.src.slice(1))}" alt="${escAttr(it.alt)}" loading="lazy" decoding="async">`;
       else inl += `<img class="inline" src="${escAttr(it.src)}" alt="${escAttr(it.alt)}" loading="lazy" decoding="async">`;
     }
     out = inl + out.slice(last);
