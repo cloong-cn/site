@@ -216,6 +216,7 @@ export function postPage(cfg, ctx, post, older, newer) {
       keywords: post.tags.join(', '),
     },
     bodyClass: 'post',
+    styles: post.math ? ['katex.css'] : [], /* only a page with a formula loads KaTeX's stylesheet and fonts */
     body: `${pageTop(cfg, ctx, 'blog')}
 <main id="main" class="page-main">
 <article class="article" data-share-title="${esc(post.title)}" data-share-desc="${esc(post.description)}" data-share-date="${esc(longDate(post.date))}" data-share-site="${esc(`${cfg.brand || cfg.name} 的博客`)}">
@@ -591,7 +592,7 @@ ${field('slug', '网址（/gallery/ 后面那段）', 'maxlength="80" spellcheck
 <p class="admin-offline" data-view="offline" hidden></p>
 </main>
 <div class="job-toast" data-toast hidden role="status" aria-live="polite"><div class="job-row"><span class="job-dot" data-toast-dot></span><span class="job-text" data-toast-text></span><button class="cm-link" type="button" data-toast-log>记录</button><button class="cm-link" type="button" data-toast-close aria-label="关闭">✕</button></div><pre class="job-log" data-toast-pre hidden></pre></div>`,
-    scripts: ['admin-marked.js', 'site-admin.js'],
+    scripts: ['admin-marked.js', 'admin-katex.js', 'site-admin.js'],
   };
 }
 

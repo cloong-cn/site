@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import zlib from 'node:zlib';
 import { marked } from 'marked';
+import katex from 'katex';
 import { layout } from '../src/templates/layout.mjs';
 import { ymd } from '../src/templates/util.mjs';
 import { homePage } from '../src/templates/home.mjs';
@@ -113,6 +114,69 @@ const wikilink = {
   },
   renderer: (t) => `W${encodeURIComponent(JSON.stringify([t.to, t.part, t.label]))}`,
 };
+
+/* maths, typeset by KaTeX while building: $…$ within a line, $$…$$ on lines of its own (or a ```math block). Visitors
+   get finished HTML and the fonts it uses, no script; only pages with a formula load KaTeX's stylesheet (post.math).
+   A $ that opens must be followed by something other than a space, one that closes must follow something other than
+   a space and not be followed by a digit, so "$5 和 $10" stays text; \$ is always a dollar sign. */
+let math = { used: false, file: '' };
+function tex(src, display) {
+  math.used = true;
+  const opts = { displayMode: display, output: 'htmlAndMathml', strict: 'ignore' };
+  try { return katex.renderToString(src, { ...opts, throwOnError: true }); }
+  catch (e) {
+    linkNotes.push(`文章 ${math.file}：公式 ${src.length > 40 ? src.slice(0, 40) + '…' : src} 写得不对（${String(e.message || e).replace(/^KaTeX parse error:\s*/, '')}）`);
+    try { return katex.renderToString(src, { ...opts, throwOnError: false }); } catch { return `<code>${src.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</code>`; }
+  }
+}
+const mathBlock = {
+  name: 'mathBlock',
+  level: 'block',
+  start: (src) => { const m = /^\$\$/m.exec(src); return m ? m.index : undefined; },
+  tokenizer(src) {
+    const m = /^\$\$([\s\S]+?)\$\$[ \t]*(?:\n+|$)/.exec(src);
+    if (m) return { type: 'mathBlock', raw: m[0], text: m[1].trim() };
+  },
+  renderer: (t) => `<div class="math-display">${tex(t.text, true)}</div>\n`,
+};
+const mathInline = {
+  name: 'mathInline',
+  level: 'inline',
+  start: (src) => src.indexOf('$'),
+  tokenizer(src) {
+    let m = /^\$\$((?:\\.|[^\\$])+?)\$\$/.exec(src);
+    if (m) return { type: 'mathInline', raw: m[0], text: m[1].trim(), display: true };
+    m = /^\$(?![\s$])((?:\\.|[^\\$\n])+?)(?<!\s)\$(?!\d)/.exec(src);
+    if (m) return { type: 'mathInline', raw: m[0], text: m[1], display: false };
+  },
+  renderer: (t) => tex(t.text, t.display),
+};
+/* how formulas sit in an article (appended to KaTeX's own stylesheet): a formula wider than the column scrolls
+   sideways on its own instead of stretching the page */
+const KATEX_SITE = `.prose .katex{font-size:1.12em}
+.prose .math-display{margin:1.6em 0;overflow-x:auto;overflow-y:hidden;padding:.3em 0;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+.prose .math-display .katex-display{margin:0}
+.prose .math-display>.katex-display>.katex{text-align:center}
+.prose .katex-error{color:var(--c-caution)}
+.prose :is(h2,h3) .katex{font-size:1em}`;
+
+/* the feed: readers show MathML themselves, without KaTeX's stylesheet the HTML copy would be a jumble */
+function feedMath(html) {
+  let out = html, at;
+  while ((at = out.indexOf('<span class="katex-html"')) >= 0) {
+    let depth = 0, i = at;
+    const re = /<span\b|<\/span>/g;
+    re.lastIndex = at;
+    let m;
+    while ((m = re.exec(out))) {
+      depth += m[0] === '</span>' ? -1 : 1;
+      if (depth === 0) { i = m.index + m[0].length; break; }
+    }
+    if (depth !== 0) break;
+    out = out.slice(0, at) + out.slice(i);
+  }
+  return out;
+}
 
 /* footnotes, as GitHub and Obsidian write them: [^1] in the text, and somewhere (usually at the end) a line of its own
    "[^1]: the note", whose next lines belong to it when indented. They are numbered in the order they are first
@@ -266,6 +330,7 @@ function scrubbed(html, file) {
 /* an article's Markdown as HTML, its footnotes listed at the end */
 function article(body, file) {
   resetFootnotes();
+  math = { used: false, file: file.replace(/.md$/, '') };
   const html = marked.parse(body);
   return html + footnoteList(file);
 }
@@ -274,7 +339,8 @@ async function loadPosts() {
   const dir = path.join(CONTENT, 'blog');
   if (!existsSync(dir)) return [];
   marked.setOptions({ gfm: true });
-  marked.use({ renderer: { code: (t) => codeBlock(t.text, t.lang) }, extensions: [highlight, wikilink, footnoteDef, footnoteRef] }); /* code coloured like Xcode, see highlight.mjs */
+  marked.use({ renderer: { code: (t) => (/^(math|latex|katex)$/i.test(t.lang || '') ? `<div class="math-display">${tex(t.text, true)}</div>
+` : codeBlock(t.text, t.lang)) }, extensions: [highlight, wikilink, footnoteDef, footnoteRef, mathBlock, mathInline] }); /* code coloured like Xcode, see highlight.mjs */
   const posts = [];
   for (const file of (await readdir(dir)).filter((f) => f.endsWith('.md')).sort()) {
     const { data, body } = frontmatter(await readFile(path.join(dir, file), 'utf8'));
@@ -299,6 +365,7 @@ async function loadPosts() {
       minutes: readingMinutes(text),
       words: wordCount(text).total,
       html: embedAlbums(await media.rewrite(enhance(scrubbed(article(body, file), file)), info), slug),
+      math: math.used, /* this article has a formula: its page loads KaTeX's stylesheet */
       draft: data.draft === true,
       comments: data.comments !== false,
       aliases: (Array.isArray(data.aliases) ? data.aliases : []).map(String),
@@ -462,6 +529,16 @@ async function buildAssets() {
   css = css.replace(/url\(fonts\/([\w.-]+\.woff2)\)/g, (m, name) => `url(${files[`fonts/${name}`]})`);
   await emit('site.css', Buffer.from(minifyCss(css)));
 
+  /* KaTeX's stylesheet, for the pages with a formula: only the woff2 fonts (every browser this site supports reads
+     them), each loaded only when a formula on the page uses it */
+  const kdir = path.join(root, 'node_modules/katex/dist');
+  let kcss = (await readFile(path.join(kdir, 'katex.min.css'), 'utf8')).replace(/,\s*url\(fonts\/[^)]+\.(?:woff|ttf)\)\s*format\("(?:woff|truetype)"\)/g, '');
+  for (const name of new Set([...kcss.matchAll(/url\(fonts\/([\w-]+\.woff2)\)/g)].map((m) => m[1]))) {
+    const rel = await emit(`fonts/katex/${name}`, await readFile(path.join(kdir, 'fonts', name)));
+    kcss = kcss.replaceAll(`url(fonts/${name})`, `url(${rel})`);
+  }
+  await emit('katex.css', Buffer.from(kcss + '\n' + KATEX_SITE));
+
   const js = async (name) => stripJsComments(await readFile(path.join(root, 'src/scripts', name), 'utf8'));
   const bundle = async (...names) => Buffer.from((await Promise.all(names.map(js))).join(';\n'));
   /* the words these scripts put on screen get into each page's Chinese font too */
@@ -473,6 +550,7 @@ async function buildAssets() {
   await emit('site-admin.js', await bundle('theme.js', 'theme-icon.js', 'admin.js'));
   /* the admin editor's preview turns Markdown into HTML in the browser with the same library the build uses */
   await emit('admin-marked.js', await readFile(path.join(root, 'node_modules/marked/lib/marked.umd.js')));
+  await emit('admin-katex.js', await readFile(path.join(root, 'node_modules/katex/dist/katex.min.js'))); /* and the formulas */
   await emit('admin.css', Buffer.from(minifyCss(await readFile(path.join(root, 'src/styles/admin.css'), 'utf8'))));
 
   await emit('tz.json', await readFile(path.join(root, 'src/data/tz.json'))); /* time zone -> city, for the telemetry bar */
@@ -534,7 +612,7 @@ async function writePage(r) {
 const xml = (s) => String(s).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
 
 function rss(posts) {
-  const items = posts.slice(0, 30).map((p) => `<item><title>${xml(p.title)}</title><link>${cfg.url}/blog/${encodeURI(p.slug)}/</link><guid isPermaLink="true">${cfg.url}/blog/${encodeURI(p.slug)}/</guid><pubDate>${p.date.toUTCString()}</pubDate><description>${xml(p.description)}</description><content:encoded><![CDATA[${absolute(p.html).replaceAll(']]>', ']]]]><![CDATA[>')}]]></content:encoded>${p.tags.map((t) => `<category>${xml(t)}</category>`).join('')}</item>`).join('\n');
+  const items = posts.slice(0, 30).map((p) => `<item><title>${xml(p.title)}</title><link>${cfg.url}/blog/${encodeURI(p.slug)}/</link><guid isPermaLink="true">${cfg.url}/blog/${encodeURI(p.slug)}/</guid><pubDate>${p.date.toUTCString()}</pubDate><description>${xml(p.description)}</description><content:encoded><![CDATA[${absolute(feedMath(p.html)).replaceAll(']]>', ']]]]><![CDATA[>')}]]></content:encoded>${p.tags.map((t) => `<category>${xml(t)}</category>`).join('')}</item>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
 <channel>

@@ -1239,6 +1239,11 @@
   /* Obsidian's other names for the same five (as scripts/build.mjs) */
   var CALLOUT_ALIAS = { INFO: 'NOTE', ABSTRACT: 'NOTE', SUMMARY: 'NOTE', TODO: 'NOTE', QUOTE: 'NOTE', EXAMPLE: 'NOTE', HINT: 'TIP', SUCCESS: 'TIP', CHECK: 'TIP', DONE: 'TIP', QUESTION: 'IMPORTANT', HELP: 'IMPORTANT', FAQ: 'IMPORTANT', ATTENTION: 'WARNING', FAILURE: 'CAUTION', FAIL: 'CAUTION', MISSING: 'CAUTION', DANGER: 'CAUTION', ERROR: 'CAUTION', BUG: 'CAUTION' };
   var mdReady = false;
+  function texPreview(src, display) {
+    if (!window.katex) return '<code>' + escHtml(src) + '</code>';
+    try { return window.katex.renderToString(src, { displayMode: display, output: 'mathml', throwOnError: true, strict: 'ignore' }); }
+    catch (e) { return '<span class="wikilink is-missing" title="' + escHtml(String(e.message || e)) + '">' + escHtml(src) + '</span>'; }
+  }
   /* footnotes of the article being shown: numbered as they are first used, listed at the end */
   var fnOrder = [], fnDefs = {};
   function render(md) {
@@ -1247,7 +1252,29 @@
     if (!mdReady) {
       m.use({
         gfm: true,
+        /* ```math is a formula too; any other code block as marked draws it (false: its own renderer) */
+        renderer: { code: function (t) { return /^(math|latex|katex)$/i.test(t.lang || '') ? '<div class="math-display">' + texPreview(t.text, true) + '</div>\n' : false; } },
         extensions: [{
+          /* formulas, by the same rules as the build; shown as MathML, which browsers draw by themselves (KaTeX's own
+             HTML needs inline styles, which this page does not allow) */
+          name: 'mathBlock', level: 'block',
+          start: function (src) { var x = /^\$\$/m.exec(src); return x ? x.index : undefined; },
+          tokenizer: function (src) {
+            var x = /^\$\$([\s\S]+?)\$\$[ \t]*(?:\n+|$)/.exec(src);
+            if (x) return { type: 'mathBlock', raw: x[0], text: x[1].trim() };
+          },
+          renderer: function (t) { return '<div class="math-display">' + texPreview(t.text, true) + '</div>\n'; },
+        }, {
+          name: 'mathInline', level: 'inline',
+          start: function (src) { return src.indexOf('$'); },
+          tokenizer: function (src) {
+            var x = /^\$\$((?:\\.|[^\\$])+?)\$\$/.exec(src);
+            if (x) return { type: 'mathInline', raw: x[0], text: x[1].trim(), display: true };
+            x = /^\$(?![\s$])((?:\\.|[^\\$\n])+?)(?<!\s)\$(?!\d)/.exec(src);
+            if (x) return { type: 'mathInline', raw: x[0], text: x[1], display: false };
+          },
+          renderer: function (t) { return texPreview(t.text, t.display); },
+        }, {
           name: 'footnoteDef', level: 'block',
           start: function (src) { var x = /^\[\^[^\]\s]+\]:/m.exec(src); return x ? x.index : undefined; },
           tokenizer: function (src) {
