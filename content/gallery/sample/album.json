@@ -1,0 +1,92 @@
+{
+  "title": "示例图集",
+  "description": "这些是程序生成的示例图，用来看图集的样子。换成自己的照片后可以删掉整个 sample 文件夹。",
+  "draft": true,
+  "timeline": "day",
+  "days": {
+    "2026-03-14": "第一天，天气很好，走了很远。",
+    "2026-04-02": "回来的路上多拍了几张。"
+  },
+  "photos": {
+    "b2bcf95347ce.jpg": {
+      "note": "出发的早上",
+      "date": "2026-03-14",
+      "from": "IMG_1000.jpg"
+    },
+    "a8acf5668324.jpg": {
+      "note": "",
+      "date": "2026-03-14",
+      "from": "IMG_1001.jpg"
+    },
+    "6848b9e08b8f.jpg": {
+      "note": "竖着拍的一张",
+      "date": "2026-03-14",
+      "from": "IMG_1002.jpg"
+    },
+    "3def841dad66.jpg": {
+      "note": "",
+      "date": "2026-03-14",
+      "from": "IMG_1003.jpg"
+    },
+    "7ab5428ff76d.jpg": {
+      "note": "下午的光很好看，这条备注故意写得长一点，看看放不下的时候会怎么显示",
+      "date": "2026-03-15",
+      "from": "IMG_1004.jpg"
+    },
+    "de7e506b11c4.jpg": {
+      "note": "",
+      "date": "2026-03-15",
+      "from": "IMG_1005.jpg"
+    },
+    "425138cc8c7a.jpg": {
+      "note": "",
+      "date": "2026-03-15",
+      "from": "IMG_1006.jpg"
+    },
+    "31b1edfaf875.jpg": {
+      "note": "这一天只拍了这一张",
+      "date": "2026-03-21",
+      "from": "IMG_1007.jpg"
+    },
+    "5202a0ee6fa9.jpg": {
+      "note": "",
+      "date": "2026-04-02",
+      "from": "IMG_1008.jpg"
+    },
+    "ccc92d97b7ac.jpg": {
+      "note": "傍晚",
+      "date": "2026-04-02",
+      "from": "IMG_1009.jpg"
+    },
+    "37aba6a54fc9.jpg": {
+      "note": "",
+      "date": "2026-04-02",
+      "from": "IMG_1010.jpg"
+    },
+    "8f3d9697455f.jpg": {
+      "note": "",
+      "date": "2026-04-02",
+      "from": "IMG_1011.jpg"
+    },
+    "099429e23838.jpg": {
+      "note": "",
+      "date": "2026-04-02",
+      "from": "IMG_1012.jpg"
+    },
+    "650d5d22ecae.jpg": {
+      "note": "",
+      "date": "2026-04-03",
+      "from": "IMG_1013.jpg"
+    },
+    "6e49d8fe0412.jpg": {
+      "note": "",
+      "date": "2026-04-03",
+      "from": "IMG_1014.jpg"
+    },
+    "cb4d9e7800c6.jpg": {
+      "note": "",
+      "date": "",
+      "from": "scan-old.jpg"
+    }
+  }
+}
