@@ -4,6 +4,9 @@
    through them, Enter opens one, Escape closes the panel. */
 (function () {
   'use strict';
+  /* the full list used to live at /blog/: an old /blog/?tag=… or ?q=… link goes on to where it is now */
+  var home = document.querySelector('[data-blog-home]');
+  if (home && /[?&](tag|q)=/.test(location.search)) { location.replace(home.getAttribute('data-archive-href') + location.search); return; }
   var root = document.querySelector('[data-archive]');
   if (!root) return;
 

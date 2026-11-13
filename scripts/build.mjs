@@ -14,7 +14,7 @@ import { marked } from 'marked';
 import { layout } from '../src/templates/layout.mjs';
 import { ymd } from '../src/templates/util.mjs';
 import { homePage } from '../src/templates/home.mjs';
-import { archivePage, postPage, notFoundPage, adminPage, trapPage, redirectPage, commentsOn } from '../src/templates/blog.mjs';
+import { blogHomePage, archivePage, postPage, notFoundPage, adminPage, trapPage, redirectPage, commentsOn } from '../src/templates/blog.mjs';
 import { galleryPage, albumPage } from '../src/templates/gallery.mjs';
 import { createMedia, ASSETS, ROOT } from './media.mjs';
 import { loadAlbums, preview } from './gallery.mjs';
@@ -362,7 +362,7 @@ ${items}
 function sitemap(posts) {
   const latest = posts[0] ? ymd(posts[0].date) : '';
   const shown = albums.filter((a) => !a.draft);
-  const urls = [['/', latest], ['/blog/', latest], ...posts.map((p) => [`/blog/${encodeURI(p.slug)}/`, ymd(p.date)]), ...(shown.length ? [['/gallery/', '']] : []), ...shown.map((a) => [`/gallery/${encodeURI(a.slug)}/`, ''])];
+  const urls = [['/', latest], ['/blog/', latest], ['/blog/archive/', latest], ...posts.map((p) => [`/blog/${encodeURI(p.slug)}/`, ymd(p.date)]), ...(shown.length ? [['/gallery/', '']] : []), ...shown.map((a) => [`/gallery/${encodeURI(a.slug)}/`, ''])];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map(([u, d]) => `<url><loc>${cfg.url}${u}</loc>${d ? `<lastmod>${d}</lastmod>` : ''}</url>`).join('\n')}
@@ -389,8 +389,9 @@ const SAMPLE_OG = 'a4c7cbe7f3f72043'; /* og.jpg as it ships, with the placeholde
 async function checks(posts) {
   const notes = [];
   const pub = path.join(root, 'src/public');
-  const known = new Set(['/', '/blog/', '/rss.xml', '/sitemap.xml', '/robots.txt', '/404.html', ...posts.map((p) => `/blog/${p.slug}/`), '/gallery/', ...albums.map((a) => `/gallery/${a.slug}/`)]);
+  const known = new Set(['/', '/blog/', '/blog/archive/', '/rss.xml', '/sitemap.xml', '/robots.txt', '/404.html', ...posts.map((p) => `/blog/${p.slug}/`), '/gallery/', ...albums.map((a) => `/gallery/${a.slug}/`)]);
   notes.push(...albumNotes);
+  if (posts.some((p) => p.slug === 'archive')) notes.push('文章 archive：这个网址是「全部文章」页用的，这篇文章会被它盖住，换一个文件名（网址）');
   for (const f of await readdir(pub, { recursive: true, withFileTypes: true })) {
     if (f.isFile()) known.add('/' + path.relative(pub, path.join(f.parentPath || f.path, f.name)).split(path.sep).join('/'));
   }
@@ -459,8 +460,10 @@ await buildAssets();
 
 const pages = [
   { path: '/', render: (ctx) => homePage(cfg, ctx, posts, tags) },
-  { path: '/blog/', render: (ctx) => archivePage(cfg, ctx, posts, tags) },
+  { path: '/blog/', render: (ctx) => blogHomePage(cfg, ctx, posts, tags) },
   ...posts.map((p, i) => ({ path: `/blog/${p.slug}/`, render: (ctx) => postPage(cfg, ctx, p, posts[i + 1], posts[i - 1]) })),
+  /* after the articles, so an article that happens to be called "archive" cannot take its place (checks() warns) */
+  { path: '/blog/archive/', render: (ctx) => archivePage(cfg, ctx, posts, tags) },
   ...(albums.length ? [{ path: '/gallery/', render: (ctx) => galleryPage(cfg, ctx, albums) }] : []),
   ...albums.map((a) => ({ path: `/gallery/${a.slug}/`, render: (ctx) => albumPage(cfg, ctx, a) })),
   { path: '/404.html', render: (ctx) => notFoundPage(cfg, ctx) },
@@ -469,7 +472,7 @@ const pages = [
   ...(cfg.admin?.enabled ? [{ path: '/_admin/', render: (ctx) => adminPage(cfg, ctx, posts) }, { path: '/_trap/', render: (ctx) => trapPage(cfg, ctx) }] : []),
 ];
 /* an article moved to a new address: the old one forwards to it */
-const taken = new Set(posts.map((p) => p.slug));
+const taken = new Set(['archive', ...posts.map((p) => p.slug)]);
 for (const p of posts) {
   for (const a of p.aliases) {
     if (!a || taken.has(a) || !/^[\p{L}\p{N}][\p{L}\p{N}_.-]*$/u.test(a)) continue;

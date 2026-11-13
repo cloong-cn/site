@@ -1,9 +1,14 @@
-import { esc, md, ymd, longDate, icon, topNav, footer, rulerNav } from './util.mjs';
+import { esc, md, ymd, longDate, icon, topNav, footer, rulerNav, picture, placeholder, tile, wan } from './util.mjs';
 
 /* the same floating capsule as the home page (util.mjs) */
 const pageTop = (cfg, ctx, current) => topNav(cfg, ctx, { current });
 
-export function archivePage(cfg, ctx, posts, tags) {
+/* the blog's own addresses, kept in one place so the blog can later move to a domain of its own */
+const BLOG = '/blog/';
+const ARCHIVE = '/blog/archive/';
+const tagHref = (ctx, t) => ctx.href(`${ARCHIVE}?tag=${encodeURIComponent(t)}`);
+
+function byYear(posts) {
   const years = [];
   for (const p of posts) {
     const y = String(p.date.getFullYear());
@@ -11,22 +16,145 @@ export function archivePage(cfg, ctx, posts, tags) {
     if (!g) years.push((g = { year: y, posts: [] }));
     g.posts.push(p);
   }
-  const groups = years.map((g) => `<section class="year" data-year>
+  return years;
+}
+
+/* ------------------------------------------------------------------ the blog's front page */
+
+/* an article's picture, or a tile in its first tag's colours with the tag's first letter */
+function cover(p, ctx, sizes, eager = false) {
+  if (p.thumb) return `${placeholder(p.thumb)}${picture(p.thumb, ctx.asset(''), { sizes, eager })}`;
+  const key = p.tags[0] || p.title;
+  return `<span class="cover-art" style="${tile(key)}" aria-hidden="true"><span class="cover-glyph">${esc([...key][0].toUpperCase())}</span><span class="cover-word">${esc(key)}</span></span>`;
+}
+
+const meta = (p) => `<time datetime="${ymd(p.date)}">${longDate(p.date)}</time><span>阅读约 ${p.minutes} 分钟</span>`;
+
+function feature(p, ctx) {
+  return `<a class="card feature" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+<div class="feature-media inset">${cover(p, ctx, '(max-width: 900px) calc(100vw - 48px), 640px', true)}</div>
+<div class="feature-body">
+<p class="feature-meta"><span class="badge">最新</span>${meta(p)}</p>
+<h2 class="feature-title">${esc(p.title)}</h2>
+${p.description ? `<p class="feature-desc">${esc(p.description)}</p>` : ''}
+<p class="feature-foot">${p.tags.length ? `<span class="tag-line">${p.tags.map(esc).join(' · ')}</span>` : '<span></span>'}<span class="text-link">阅读全文${icon.chevron}</span></p>
+</div>
+</a>`;
+}
+
+function postCard(p, ctx, big) {
+  return `<li class="${big ? 'is-big' : ''}"><a class="card pcard" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+<div class="pcard-media inset">${cover(p, ctx, big ? '(max-width: 640px) calc(100vw - 48px), (max-width: 900px) 45vw, 560px' : '(max-width: 640px) calc(100vw - 48px), (max-width: 900px) 45vw, 380px')}</div>
+<div class="pcard-body">
+<p class="pcard-meta">${meta(p)}</p>
+<h3 class="pcard-title">${esc(p.title)}</h3>
+${p.description ? `<p class="pcard-desc">${esc(p.description)}</p>` : ''}
+${p.tags.length ? `<p class="tag-line">${p.tags.map(esc).join(' · ')}</p>` : ''}
+</div>
+</a></li>`;
+}
+
+function topics(posts, tags, ctx) {
+  return tags.map((t) => {
+    const latest = posts.find((p) => p.tags.includes(t.name));
+    return `<li><a class="card topic" href="${tagHref(ctx, t.name)}" style="${tile(t.name)}">
+<span class="topic-head"><span class="topic-dot" aria-hidden="true"></span><span class="topic-name">${esc(t.name)}</span><span class="topic-count num">${t.count} 篇</span></span>
+${latest ? `<span class="topic-latest">${esc(latest.title)}</span>` : ''}
+</a></li>`;
+  }).join('');
+}
+
+const secHead = (id, title, link = '') => `<header class="bh-sec-head"><h2 id="${id}">${title}</h2>${link}</header>`;
+
+export function blogHomePage(cfg, ctx, posts, tags) {
+  const lead = cfg.blog?.lead || '';
+  const words = posts.reduce((n, p) => n + (p.words || 0), 0);
+  const [first, ...rest] = posts;
+  const recent = rest.slice(0, 5);
+  const years = byYear(posts);
+  const archiveHref = ctx.href(ARCHIVE);
+  const allLink = `<a class="text-link" href="${archiveHref}">全部 ${posts.length} 篇${icon.chevron}</a>`;
+  return {
+    path: BLOG,
+    title: '博客',
+    description: lead || `${cfg.name} 的博客`,
+    bodyClass: 'blog blog-home',
+    data: {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: `${cfg.name} 的博客`,
+      description: lead || undefined,
+      url: `${cfg.url}${BLOG}`,
+      inLanguage: cfg.lang,
+      author: { '@type': 'Person', name: cfg.name, url: `${cfg.url}/` },
+    },
+    body: `${pageTop(cfg, ctx, 'blog')}
+<main id="main" class="page-main" data-blog-home data-archive-href="${esc(archiveHref)}">
+<div class="container">
+<header class="bh-head">
+<p class="bh-eyebrow">${esc(cfg.brand || cfg.name)} 的博客</p>
+<h1 class="bh-title">${esc(lead || '博客')}</h1>
+<ul class="bh-stats" aria-label="博客概况">
+<li><b class="num">${posts.length}</b> 篇文章</li>
+${words ? `<li>约 <b class="num">${wan(words).replace(/\s*字$/, '')}</b> 字</li>` : ''}
+${tags.length ? `<li><b class="num">${tags.length}</b> 个主题</li>` : ''}
+${first ? `<li>最近更新 <b class="num">${ymd(first.date)}</b></li>` : ''}
+</ul>
+<div class="bh-actions">
+<form class="bh-search glass" action="${archiveHref}" method="get" role="search" data-refract>${icon.search}<label class="sr-only" for="bh-q">搜索文章</label><input id="bh-q" name="q" type="search" placeholder="搜索标题、摘要或标签" autocomplete="off" enterkeyhint="search"></form>
+<a class="btn btn-ghost" href="${ctx.href('/rss.xml')}">RSS 订阅</a>
+</div>
+</header>
+
+${first ? `<section class="bh-feature" aria-label="最新文章">${feature(first, ctx)}</section>` : '<p class="empty">第一篇文章即将发布。</p>'}
+
+${recent.length ? `<section class="bh-sec" aria-labelledby="bh-recent">
+${secHead('bh-recent', '最近更新', allLink)}
+<ol class="post-grid">${recent.map((p, i) => postCard(p, ctx, i < 2)).join('')}</ol>
+</section>` : ''}
+
+${tags.length ? `<section class="bh-sec" aria-labelledby="bh-topics">
+${secHead('bh-topics', '主题')}
+<ul class="topic-grid">${topics(posts, tags, ctx)}</ul>
+</section>` : ''}
+
+${posts.length ? `<section class="bh-sec" aria-labelledby="bh-archive">
+${secHead('bh-archive', '归档')}
+<a class="card bh-archive" href="${archiveHref}">
+<span class="bh-archive-text"><span class="bh-archive-title">全部文章</span><span class="bh-archive-sub">按时间排列，可以搜索，也可以按主题筛选</span></span>
+<span class="bh-years">${years.map((y) => `<span class="bh-year"><b class="num">${y.year}</b><small>${y.posts.length} 篇</small></span>`).join('')}</span>
+<span class="bh-archive-go" aria-hidden="true">${icon.arrow}</span>
+</a>
+</section>` : ''}
+
+<div class="archive-foot">${footer(cfg, ctx)}</div>
+</div>
+</main>`,
+    scripts: ['site-blog.js'],
+  };
+}
+
+/* ------------------------------------------------------------------ the archive: every article, searchable */
+
+export function archivePage(cfg, ctx, posts, tags) {
+  const years = byYear(posts);
+  const groups = years.map((g) => `<section class="year" id="y${g.year}" data-year>
 <div class="year-head"><h2 class="num">${g.year}</h2><span data-year-count>${g.posts.length} 篇</span></div>
 <ol>${g.posts.map((p) => {
     const search = [p.title, p.description, p.tags.join(' ')].join(' ').toLowerCase();
-    return `<li class="post-row" data-post data-tags="${esc(p.tags.join('|'))}" data-search="${esc(search)}" data-date="${ymd(p.date)}"><a href="${ctx.href(`/blog/${p.slug}/`)}"><span class="date">${md(p.date)}</span><span class="title">${esc(p.title)}</span><span class="tags">${esc(p.tags.join('、'))}</span></a></li>`;
+    return `<li class="post-row" data-post data-tags="${esc(p.tags.join('|'))}" data-search="${esc(search)}" data-date="${ymd(p.date)}"><a href="${ctx.href(`${BLOG}${p.slug}/`)}"><span class="date">${md(p.date)}</span><span class="title">${esc(p.title)}</span><span class="tags">${esc(p.tags.join('、'))}</span></a></li>`;
   }).join('')}</ol>
 </section>`).join('\n');
 
   return {
-    path: '/blog/',
-    title: '博客',
+    path: ARCHIVE,
+    title: '全部文章',
     description: `${cfg.name} 的全部文章`,
     bodyClass: 'blog',
     body: `${pageTop(cfg, ctx, 'blog')}
 <main id="main" class="page-main" data-archive>
 <div class="container"><header class="archive-head">
+<a class="back" href="${ctx.href(BLOG)}">${icon.back} 博客</a>
 <h1 class="archive-title">全部文章</h1>
 <p class="archive-sub">共 <span class="num" data-count>${posts.length}</span> 篇，按时间倒序</p>
 </header></div>
@@ -90,11 +218,11 @@ export function postPage(cfg, ctx, post, older, newer) {
     body: `${pageTop(cfg, ctx, 'blog')}
 <main id="main" class="page-main">
 <article class="article">
-<a class="back" href="${ctx.href('/blog/')}">${icon.back} 全部文章</a>
+<a class="back" href="${ctx.href(BLOG)}">${icon.back} 博客</a>
 <div class="article-meta"><time datetime="${ymd(post.date)}">${longDate(post.date)}</time><span>阅读约 ${post.minutes} 分钟</span></div>
 <h1 class="article-title" id="article-title">${esc(post.title)}</h1>
 ${post.description ? `<p class="article-lead">${esc(post.description)}</p>` : ''}
-${post.tags.length ? `<div class="article-tags">${post.tags.map((t) => `<a href="${ctx.href(`/blog/?tag=${encodeURIComponent(t)}`)}">${esc(t)}</a>`).join('')}</div>` : ''}
+${post.tags.length ? `<div class="article-tags">${post.tags.map((t) => `<a href="${tagHref(ctx, t)}">${esc(t)}</a>`).join('')}</div>` : ''}
 <div class="prose">
 ${post.html}
 </div>

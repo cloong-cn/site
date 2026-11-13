@@ -1,20 +1,7 @@
-import { esc, ymd, icon, topNav, footer, picture, placeholder } from './util.mjs';
+import { esc, ymd, icon, topNav, footer, picture, placeholder, tile, wan } from './util.mjs';
 
 /* the home page is one page that scrolls: the planet; a row of small cards about right now; the writing, the work
    and a word about me. The top bar (util.mjs, topNav) links the last three */
-
-/* a stable pick from a short list, so the same title always gets the same colours */
-function pick(list, key) {
-  let h = 0;
-  for (const c of String(key)) h = (h * 31 + c.codePointAt(0)) >>> 0;
-  return list[h % list.length];
-}
-/* colours for generated tiles (an article without a picture): Apple's system hues in pairs */
-const HUES = [['#0a84ff', '#5e5ce6'], ['#30d158', '#0a9396'], ['#ff9f0a', '#ff375f'], ['#64d2ff', '#0a84ff'], ['#ff6482', '#ff9f0a'], ['#34c7a4', '#30b0c7']];
-const tile = (key) => { const [a, b] = pick(HUES, key); return `--t1:${a};--t2:${b}`; };
-
-/* 26000 → "2.6 万字", 6061 → "6061 字" */
-const wan = (n) => (n >= 10000 ? `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万字` : `${n} 字`);
 
 /* ------------------------------------------------------------------ hero */
 

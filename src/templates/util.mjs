@@ -18,6 +18,19 @@ export function longDate(d) {
   return `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
+/* a stable pick from a short list, so the same title always gets the same colours */
+export function pick(list, key) {
+  let h = 0;
+  for (const c of String(key)) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  return list[h % list.length];
+}
+/* colours for generated tiles (an article without a picture): Apple's system hues in pairs */
+const HUES = [['#0a84ff', '#5e5ce6'], ['#30d158', '#0a9396'], ['#ff9f0a', '#ff375f'], ['#64d2ff', '#0a84ff'], ['#ff6482', '#ff9f0a'], ['#34c7a4', '#30b0c7']];
+export const tile = (key) => { const [a, b] = pick(HUES, key); return `--t1:${a};--t2:${b}`; };
+
+/* 26000 → "2.6 万字", 6061 → "6061 字" */
+export const wan = (n) => (n >= 10000 ? `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万字` : `${n} 字`);
+
 export const icon = {
   /* Apple's "›" after a text link */
   chevron: '<svg class="chev" width="7" height="12" viewBox="0 0 7 12" fill="none" aria-hidden="true"><path d="M1.2 1.2 5.8 6l-4.6 4.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
