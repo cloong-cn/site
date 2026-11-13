@@ -1,0 +1,26 @@
+{
+  "name": "personal-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Personal homepage and blog — static, no framework",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/dev.mjs --serve",
+    "video": "node scripts/video.mjs",
+    "album": "node scripts/album.mjs",
+    "og": "node scripts/og.mjs"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.0",
+    "marked": "^18.0.0",
+    "subset-font": "^2.9.0"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.35.4"
+  },
+  "engines": {
+    "node": ">=20.9"
+  }
+}

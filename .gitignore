@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.cache/
+.claude/
+.DS_Store
+*.log
+server/build/
+server/*.properties
+!server/*.example.properties
