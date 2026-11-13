@@ -100,6 +100,20 @@ const highlight = {
   renderer(t) { return `<mark>${this.parser.parseInline(t.tokens)}</mark>`; },
 };
 
+/* [[网址]], [[网址|文字]], [[网址#小节]], [[#本文的小节]] — a link to another article, as SiYuan and Obsidian write it.
+   Which article it means is known only once all are read: here it becomes a placeholder, resolved by linkPosts() */
+const WIKI = /^\[\[([^\[\]\n|#]*?)(?:#([^\[\]\n|]+?))?(?:\|([^\[\]\n]+?))?\]\]/;
+const wikilink = {
+  name: 'wikilink',
+  level: 'inline',
+  start: (src) => src.indexOf('[['),
+  tokenizer(src) {
+    const m = WIKI.exec(src);
+    if (m && (m[1].trim() || m[2])) return { type: 'wikilink', raw: m[0], to: m[1].trim(), part: (m[2] || '').trim(), label: (m[3] || '').trim() };
+  },
+  renderer: (t) => `W${encodeURIComponent(JSON.stringify([t.to, t.part, t.label]))}`,
+};
+
 /* GitHub-style notes: a quote that starts with [!NOTE], [!TIP], [!IMPORTANT], [!WARNING] or [!CAUTION] */
 const CALLOUTS = {
   NOTE: ['说明', '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6v.4"/>'],
@@ -189,7 +203,7 @@ async function loadPosts() {
   const dir = path.join(CONTENT, 'blog');
   if (!existsSync(dir)) return [];
   marked.setOptions({ gfm: true });
-  marked.use({ renderer: { code: (t) => codeBlock(t.text, t.lang) }, extensions: [highlight] }); /* code coloured like Xcode, see highlight.mjs */
+  marked.use({ renderer: { code: (t) => codeBlock(t.text, t.lang) }, extensions: [highlight, wikilink] }); /* code coloured like Xcode, see highlight.mjs */
   const posts = [];
   for (const file of (await readdir(dir)).filter((f) => f.endsWith('.md')).sort()) {
     const { data, body } = frontmatter(await readFile(path.join(dir, file), 'utf8'));
@@ -226,6 +240,88 @@ function tagIndex(posts) {
   const map = new Map();
   for (const p of posts) for (const t of p.tags) map.set(t, (map.get(t) || 0) + 1);
   return [...map].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh'));
+}
+
+/* ------------------------------------------------------ links between articles */
+
+const linkNotes = [];
+const stripTags = (h) => h.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+const escHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const norm = (s) => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
+
+/* the words around a link to `slug`, the link's own words marked, for the list of articles that mention it */
+function around(html, slug) {
+  const attr = `data-ref="${escHtml(slug)}"`;
+  for (const m of html.matchAll(/<(p|li|td|th|h[234])\b[^>]*>([\s\S]*?)<\/\1>/g)) {
+    if (!m[2].includes(attr)) continue;
+    const at = m[2].indexOf(attr);
+    const open = m[2].lastIndexOf('<a ', at), close = m[2].indexOf('</a>', at);
+    const inner = m[2].slice(0, open) + '' + m[2].slice(m[2].indexOf('>', at) + 1, close) + '' + m[2].slice(close + 4);
+    let text = stripTags(inner).replace(/\s+/g, ' ').trim();
+    const MAX = 110;
+    if (text.length > MAX) {
+      const from = Math.max(0, text.indexOf('') - 36);
+      text = (from ? '…' : '') + text.slice(from, from + MAX) + (from + MAX < text.length ? '…' : '');
+    }
+    let out = escHtml(text);
+    if (out.includes('') && !out.includes('')) out += '';
+    if (out.includes('') && !out.includes('')) out = out.replace('', '');
+    return out.replace('', '<b>').replace('', '</b>');
+  }
+  return '';
+}
+
+/* [[ ]] becomes a link (or, when nothing matches, a grey word and a note after the build); then every link from one
+   article to another, [[ ]] or plain Markdown, is marked with data-ref, and each article learns who mentions it */
+function linkPosts(posts) {
+  const bySlug = new Map(posts.map((p) => [p.slug, p]));
+  for (const p of posts) for (const a of p.aliases) if (!bySlug.has(a)) bySlug.set(a, p);
+  const byTitle = new Map();
+  for (const p of posts) if (!byTitle.has(norm(p.title))) byTitle.set(norm(p.title), p);
+  const find = (to) => bySlug.get(to) || bySlug.get(to.replace(/\s+/g, '-')) || byTitle.get(norm(to));
+  const heads = new Map();
+  const headsOf = (p) => {
+    if (!heads.has(p)) heads.set(p, [...p.html.matchAll(/<h([234]) id="([^"]+)">([\s\S]*?)<\/h\1>/g)].map((m) => ({ id: m[2], text: stripTags(m[3]).trim() })));
+    return heads.get(p);
+  };
+
+  for (const p of posts) {
+    p.html = p.html.replace(/W([^]*)/g, (m, data) => {
+      const [to, part, label] = JSON.parse(decodeURIComponent(data));
+      const target = to ? find(to) : p;
+      const written = `[[${to}${part ? '#' + part : ''}]]`;
+      if (!target) {
+        linkNotes.push(`文章 ${p.slug}：${written} 找不到要链接的文章（网址、旧网址和标题都对不上，或者那篇还是草稿）`);
+        return `<span class="wikilink is-missing" title="没有找到这篇文章">${escHtml(label || to)}</span>`;
+      }
+      let h = null;
+      if (part) {
+        h = headsOf(target).find((x) => norm(x.text) === norm(part) || x.id === part || x.id === slugify(part));
+        if (!h) linkNotes.push(`文章 ${p.slug}：${written} 的小节「${part}」在《${target.title}》里没有，链接会打开文章开头`);
+      }
+      if (target === p) return h ? `<a class="wikilink" href="#${escHtml(h.id)}">${escHtml(label || h.text)}</a>` : escHtml(label || part);
+      const text = label || (h ? `${target.title} › ${h.text}` : target.title);
+      return `<a class="wikilink" href="H/blog/${encodeURI(target.slug)}/${h ? '#' + escHtml(h.id) : ''}"${h ? ` data-part="${escHtml(h.text)}"` : ''}>${escHtml(text)}</a>`;
+    });
+  }
+
+  const ref = (path) => {
+    let s = path.replace(/^\/blog\//, '').replace(/[/?#].*$/, '');
+    try { s = decodeURIComponent(s); } catch { /* as written */ }
+    return bySlug.get(s);
+  };
+  for (const p of posts) {
+    p.links = new Set();
+    p.backlinks = [];
+    p.html = p.html.replace(/<a ([^>]*?)href="H(\/blog\/[^"]+)"/g, (m, before, to) => {
+      const t = ref(to);
+      if (!t || t === p) return m;
+      p.links.add(t);
+      return `<a ${before}href="H${to}" data-ref="${escHtml(t.slug)}"`;
+    });
+  }
+  /* newest first, as the posts are */
+  for (const src of posts) for (const t of src.links) t.backlinks.push({ post: src, context: around(src.html, t.slug) });
 }
 
 /* ----------------------------------------------------------------- assets */
@@ -274,7 +370,7 @@ async function buildAssets() {
   const js = async (name) => stripJsComments(await readFile(path.join(root, 'src/scripts', name), 'utf8'));
   const bundle = async (...names) => Buffer.from((await Promise.all(names.map(js))).join(';\n'));
   /* the words these scripts put on screen get into each page's Chinese font too */
-  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js']]]) {
+  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js', 'linkcard.js']]]) {
     const buf = await bundle(...parts);
     scriptText[name] = buf.toString();
     await emit(name, buf);
@@ -390,7 +486,7 @@ async function checks(posts) {
   const notes = [];
   const pub = path.join(root, 'src/public');
   const known = new Set(['/', '/blog/', '/blog/archive/', '/rss.xml', '/sitemap.xml', '/robots.txt', '/404.html', ...posts.map((p) => `/blog/${p.slug}/`), '/gallery/', ...albums.map((a) => `/gallery/${a.slug}/`)]);
-  notes.push(...albumNotes);
+  notes.push(...albumNotes, ...linkNotes);
   if (posts.some((p) => p.slug === 'archive')) notes.push('文章 archive：这个网址是「全部文章」页用的，这篇文章会被它盖住，换一个文件名（网址）');
   for (const f of await readdir(pub, { recursive: true, withFileTypes: true })) {
     if (f.isFile()) known.add('/' + path.relative(pub, path.join(f.parentPath || f.path, f.name)).split(path.sep).join('/'));
@@ -453,6 +549,7 @@ const albums = await loadAlbums({ dir: GALLERY_DIR, dataFile: path.join(CONTENT,
 cfg.hasGallery = albums.length > 0;
 for (const a of albums) a.share = await media.shareImage(a.cover.src);
 const posts = await loadPosts();
+linkPosts(posts);
 const tags = tagIndex(posts);
 /* project screenshots on the home page go through the same image pipeline */
 for (const p of cfg.work?.projects || []) if (p.image && p.image.startsWith('/')) p.media = await media.image(p.image);

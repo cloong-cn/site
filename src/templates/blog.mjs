@@ -226,6 +226,8 @@ ${post.tags.length ? `<div class="article-tags">${post.tags.map((t) => `<a href=
 <div class="prose">
 ${post.html}
 </div>
+${backlinks(ctx, post)}
+${refData(post)}
 ${older || newer ? `<nav class="post-nav" aria-label="其他文章">
 ${older ? `<a class="prev" href="${ctx.href(`/blog/${older.slug}/`)}"><span class="label">上一篇</span><span class="t">${esc(older.title)}</span></a>` : ''}
 ${newer ? `<a class="next" href="${ctx.href(`/blog/${newer.slug}/`)}"><span class="label">下一篇</span><span class="t">${esc(newer.title)}</span></a>` : ''}
@@ -237,6 +239,29 @@ ${comments(cfg, ctx, post)}
 ${toc.length ? rulerNav({ side: cfg.navSide === 'right' ? 'right' : 'left', kind: 'toc', label: '文章目录', head: '目录', progress: true, items: toc }) : ''}`,
     scripts: ['site-blog.js'],
   };
+}
+
+/* the other articles that link to this one (build.mjs, linkPosts), each with the words around its link */
+function backlinks(ctx, post) {
+  const list = post.backlinks || [];
+  if (!list.length) return '';
+  return `<section class="backlinks" aria-labelledby="backlinks-title">
+<h2 class="bl-title" id="backlinks-title">提到这篇的文章<span class="bl-count num">${list.length}</span></h2>
+<ul class="bl-list">${list.map(({ post: p, context }) => `<li><a class="bl-item" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+<span class="bl-head"><span class="bl-t">${esc(p.title)}</span><time class="num" datetime="${ymd(p.date)}">${ymd(p.date)}</time></span>
+${context ? `<span class="bl-ctx">${context}</span>` : ''}
+</a></li>`).join('')}</ul>
+</section>`;
+}
+
+/* what the card shown over a link to another article says (linkcard.js): only the articles this page links to */
+function refData(post) {
+  const refs = new Map();
+  for (const p of post.links || []) {
+    refs.set(p.slug, { t: p.title, d: ymd(p.date), m: p.minutes, s: p.description, g: p.tags });
+  }
+  if (!refs.size) return '';
+  return `<script type="application/json" id="ref-data">${JSON.stringify(Object.fromEntries(refs)).replace(/</g, '\\u003c')}</script>`;
 }
 
 /* the slugs the comment service accepts (Comments.SLUG on the Java side) */

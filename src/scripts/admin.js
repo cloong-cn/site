@@ -469,6 +469,8 @@
     st = fresh();
     setMode('write');
     $('[data-ed-more]').open = false;
+    /* the preview finds [[ ]] links among the articles in the list: opened straight from an address, it is still empty */
+    if (!allPosts.length) call('posts').then(function (d) { allPosts = d.posts || []; schedulePreview(); }, function () {});
     if (!id) {
       fill({ date: today(), comments: true });
       st.saved = snap();
@@ -1232,6 +1234,24 @@
             if (x) return { type: 'mark', raw: x[0], tokens: this.lexer.inlineTokens(x[1]) };
           },
           renderer: function (t) { return '<mark>' + this.parser.parseInline(t.tokens) + '</mark>'; },
+        }, {
+          /* [[网址]] / [[网址|文字]] / [[网址#小节]]: found by the same rules as the build (scripts/build.mjs, linkPosts),
+             among the articles in the list; one that matches nothing shows grey, as on the site */
+          name: 'wikilink', level: 'inline',
+          start: function (src) { return src.indexOf('[['); },
+          tokenizer: function (src) {
+            var x = /^\[\[([^\[\]\n|#]*?)(?:#([^\[\]\n|]+?))?(?:\|([^\[\]\n]+?))?\]\]/.exec(src);
+            if (x && (x[1].trim() || x[2])) return { type: 'wikilink', raw: x[0], to: x[1].trim(), part: (x[2] || '').trim(), label: (x[3] || '').trim() };
+          },
+          renderer: function (t) {
+            if (!t.to) return '<a class="wikilink" href="#">' + escHtml(t.label || t.part) + '</a>';
+            var key = t.to.replace(/\s+/g, ' ').toLowerCase();
+            var p = allPosts.filter(function (q) { return q.slug === t.to || q.slug === t.to.replace(/\s+/g, '-'); })[0]
+              || allPosts.filter(function (q) { return (q.title || '').replace(/\s+/g, ' ').trim().toLowerCase() === key; })[0];
+            if (!p) return '<span class="wikilink is-missing" title="没有找到这篇文章">' + escHtml(t.label || t.to) + '</span>';
+            var text = t.label || (p.title || p.slug) + (t.part ? ' › ' + t.part : '');
+            return '<a class="wikilink" href="/blog/' + encodeURI(p.slug) + '/" title="' + escHtml(p.title || p.slug) + (p.state === 'draft' ? '（草稿：发布前站上不会出现这个链接）' : '') + '">' + escHtml(text) + '</a>';
+          },
         }],
       });
       mdReady = true;

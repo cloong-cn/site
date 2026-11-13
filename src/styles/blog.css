@@ -619,6 +619,43 @@ html.lb-lock { overflow: hidden; }
 .post-nav .label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--text-3); }
 .post-nav .t { font-size: 16px; font-weight: 500; line-height: 1.45; }
 .post-nav .next { text-align: right; grid-column: 2; }
+
+/* ---------- links between articles ---------- */
+/* [[ ]] that matches no article: grey, with a dashed line, and no link */
+.prose .wikilink.is-missing { color: var(--text-3); text-decoration: underline dashed 1px; text-underline-offset: .22em; cursor: help; }
+
+/* the articles that link here, each with the sentence its link stands in */
+.backlinks { margin-top: 72px; }
+.backlinks ~ .post-nav { margin-top: 24px; }
+.bl-title { display: flex; align-items: baseline; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); font: 600 17px/1.5 var(--font-sans); }
+.bl-count { font-size: 13px; font-weight: 400; color: var(--text-3); }
+.bl-list { display: grid; gap: 10px; margin-top: 16px; }
+.bl-item { display: block; padding: 16px 22px 18px; border-radius: var(--r-md); background: var(--surface); transition: background-color .25s, transform .3s var(--ease-spring); }
+.bl-item:hover { background: var(--surface-2); }
+.bl-item:active { transform: scale(.985); transition-duration: .1s; }
+.bl-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.bl-t { min-width: 0; font-size: 16px; font-weight: 500; line-height: 1.45; transition: color .2s; }
+.bl-item:hover .bl-t { color: var(--link); }
+.bl-head time { flex: none; font-size: 13px; color: var(--text-3); }
+.bl-ctx { display: block; margin-top: 6px; font-size: 14px; line-height: 1.7; color: var(--text-3); }
+.bl-ctx b { font-weight: 500; color: var(--text-2); box-shadow: inset 0 -.45em 0 color-mix(in srgb, var(--link) 18%, transparent); }
+
+/* the card over a link to another article (linkcard.js): glass, the whole card a link */
+.ref-card {
+  --r: var(--r-md);
+  position: fixed; z-index: 60; width: min(340px, calc(100vw - 32px)); padding: 16px 18px 18px; border-radius: var(--r);
+  transform-origin: var(--ox, 50%) var(--oy, 0); animation: ref-in .22s var(--ease-out);
+}
+.ref-card.is-out { animation: ref-out .14s ease-in forwards; }
+@keyframes ref-in { from { opacity: 0; transform: translateY(var(--dy, -4px)) scale(.97); } }
+@keyframes ref-out { to { opacity: 0; transform: scale(.98); } }
+.rc-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--text-3); }
+.rc-t { margin-top: 6px; font-size: 16px; font-weight: 600; line-height: 1.45; color: var(--text); }
+.rc-part { margin-top: 2px; font-size: 13px; color: var(--link); }
+.rc-part::before { content: "› "; }
+.rc-s { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin-top: 8px; font-size: 14px; line-height: 1.65; color: var(--text-2); }
+.rc-tags { margin-top: 10px; font-size: 12px; color: var(--text-3); }
+@media (prefers-reduced-motion: reduce) { .ref-card, .ref-card.is-out { animation-duration: .01s; } }
 .article-foot { margin-top: 96px; }
 
 /* ---------- comments ----------
@@ -770,7 +807,7 @@ a.cm-time:hover { color: var(--text-2); }
   .prose .media.is-loading picture img { opacity: 1; }
   /* these marks are drawn as backgrounds, which printers skip unless told otherwise */
   .prose ul > li::before, .prose li > input[type="checkbox"], .prose .line.is-hl::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .topbar, .sidenav, .skip-link, .back, .post-nav, .comments, .article-foot, .vt-overlay, .lightbox,
+  .topbar, .sidenav, .skip-link, .back, .post-nav, .comments, .article-foot, .vt-overlay, .lightbox, .ref-card,
   .code-copy, .code-fold, .media-zoom, .stack-ui, .player-big, .player-bar { display: none !important; }
   .article { padding-top: 0; }
   .prose a[target="_blank"]:not(:has(img))::after { content: " (" attr(href) ")"; font-size: .8em; vertical-align: baseline; color: var(--text-3); }
