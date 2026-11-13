@@ -1,10 +1,11 @@
 /* Article page — small things around the text:
-   - Site.toast: a short note at the bottom of the screen ("已复制链接"), used here and by other scripts
+   - Site.toast: a short note at the bottom of the screen ("已复制链接"), used here and by share.js
    - Site.copy: puts text on the clipboard, with the old way for browsers that lack the new one
    - every section heading gets a button beside it that copies the link to that section
    - an article written (or last changed) more than a year ago says so above the text; worked out here rather than at
      the build, so the age is right on the day it is read
-   - a long series list shows only the parts near this one until asked for all */
+   - a long series list shows only the parts near this one until asked for all
+   - a link with #hl=… (share.js makes them from selected words) lights those words up and scrolls to them */
 (function () {
   'use strict';
   window.Site = window.Site || {};
@@ -79,4 +80,62 @@
   var more = document.querySelector('[data-series-more]');
   if (more) more.addEventListener('click', function () { more.closest('.series').classList.add('is-all'); more.remove(); });
 
+  /* ---------- words a shared link points at ----------
+     #hl=<words> or #hl=<first words>,<last words>, matched with all white space taken out (a selection's line breaks
+     never quite match the page's). The words are wrapped in <mark>, one per text node they run through. */
+  function textNodes() {
+    var out = [], w = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) { return n.parentNode.closest('button, .code-head, script, style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; },
+    });
+    while (w.nextNode()) out.push(w.currentNode);
+    return out;
+  }
+  function highlight() {
+    var h = /^#hl=([^&]*)/.exec(location.hash);
+    if (!h) return;
+    var parts;
+    try { parts = h[1].split(',').map(function (s) { return decodeURIComponent(s).replace(/\s+/g, ''); }).filter(Boolean); } catch (e) { return; }
+    if (!parts.length) return;
+    [].forEach.call(prose.querySelectorAll('mark.hl-shared'), function (mk) { mk.replaceWith(document.createTextNode(mk.textContent)); });
+    prose.normalize();
+    var nodes = textNodes(), hay = '', at = [];
+    nodes.forEach(function (n, ni) {
+      var s = n.data;
+      for (var i = 0; i < s.length; i++) if (!/\s/.test(s[i])) { hay += s[i]; at.push([ni, i]); }
+    });
+    var from = hay.indexOf(parts[0]);
+    if (from < 0) return;
+    var to = from + parts[0].length;
+    if (parts[1]) {
+      var end = hay.indexOf(parts[1], to - Math.min(parts[0].length, parts[1].length));
+      if (end < 0 || end - from > 6000) return;
+      to = end + parts[1].length;
+    }
+    /* from the last node back, so splitting one never moves the next one's offsets */
+    var spans = [];
+    for (var k = from; k < to; k++) {
+      var last = spans[spans.length - 1];
+      if (last && last.n === at[k][0]) last.end = at[k][1] + 1;
+      else spans.push({ n: at[k][0], start: at[k][1], end: at[k][1] + 1 });
+    }
+    var marks = [];
+    for (var j = spans.length - 1; j >= 0; j--) {
+      var sp = spans[j], r = document.createRange();
+      r.setStart(nodes[sp.n], sp.start);
+      r.setEnd(nodes[sp.n], sp.end);
+      var mk = document.createElement('mark');
+      mk.className = 'hl-shared';
+      try { r.surroundContents(mk); marks.unshift(mk); } catch (e) { /* across elements: skip that piece */ }
+    }
+    if (!marks.length) return;
+    /* a long code block folded shut opens first */
+    var fold = marks[0].closest('.codeblock.is-long:not(.is-open)');
+    if (fold && fold.querySelector('.code-fold')) fold.querySelector('.code-fold').click();
+    setTimeout(function () {
+      marks[0].scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      setTimeout(function () { marks.forEach(function (x) { x.classList.add('is-faded'); }); }, 2600);
+    }, 120);
+  }
+  if (document.readyState === 'complete') highlight(); else window.addEventListener('load', highlight);
+  window.addEventListener('hashchange', highlight);
 })();

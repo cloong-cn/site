@@ -69,7 +69,10 @@
   /* paragraphs on blank lines, line breaks kept, addresses as links */
   function textInto(el, text) {
     text.split(/\n{2,}/).forEach(function (para) {
-      var p = make('p');
+      /* a paragraph whose every line starts with ">" is a quote (the selection bar's 引用 writes one) */
+      var quote = /^>/.test(para) && para.split('\n').every(function (ln) { return /^>/.test(ln); });
+      if (quote) para = para.replace(/^> ?/gm, '');
+      var p = make(quote ? 'blockquote' : 'p');
       para.split('\n').forEach(function (ln, i) {
         if (i) p.appendChild(make('br'));
         var last = 0, m;

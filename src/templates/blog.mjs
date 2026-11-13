@@ -218,9 +218,9 @@ export function postPage(cfg, ctx, post, older, newer) {
     bodyClass: 'post',
     body: `${pageTop(cfg, ctx, 'blog')}
 <main id="main" class="page-main">
-<article class="article">
+<article class="article" data-share-title="${esc(post.title)}" data-share-desc="${esc(post.description)}" data-share-date="${esc(longDate(post.date))}" data-share-site="${esc(`${cfg.brand || cfg.name} 的博客`)}">
 <a class="back" href="${ctx.href(BLOG)}">${icon.back} 博客</a>
-<div class="article-bar"><p class="article-meta"><time datetime="${ymd(post.date)}">${longDate(post.date)}</time>${post.updated ? `<span>更新于 <time datetime="${ymd(post.updated)}">${longDate(post.updated)}</time></span>` : ''}<span>约 ${wan(post.words || 0)}</span><span>阅读约 ${post.minutes} 分钟</span></p></div>
+<div class="article-bar"><p class="article-meta"><time datetime="${ymd(post.date)}">${longDate(post.date)}</time>${post.updated ? `<span>更新于 <time datetime="${ymd(post.updated)}">${longDate(post.updated)}</time></span>` : ''}<span>约 ${wan(post.words || 0)}</span><span>阅读约 ${post.minutes} 分钟</span></p>${shareButton()}</div>
 <h1 class="article-title" id="article-title">${esc(post.title)}</h1>
 ${post.description ? `<p class="article-lead">${esc(post.description)}</p>` : ''}
 ${post.tags.length ? `<div class="article-tags">${post.tags.map((t) => `<a href="${tagHref(ctx, t)}">${esc(t)}</a>`).join('')}</div>` : ''}
@@ -244,6 +244,11 @@ ${comments(cfg, ctx, post)}
 ${toc.length ? rulerNav({ side: cfg.navSide === 'right' ? 'right' : 'left', kind: 'toc', label: '文章目录', head: '目录', progress: true, items: toc }) : ''}`,
     scripts: ['site-blog.js'],
   };
+}
+
+/* the article's share button: its menu (copy the link, a picture to share, X, Weibo) is built by share.js */
+function shareButton() {
+  return `<button class="share-btn" type="button" data-share aria-haspopup="menu" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 10V2.2M5 4.8 8 1.8l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.2 7H4a1.5 1.5 0 0 0-1.5 1.5v4.8A1.5 1.5 0 0 0 4 14.8h8a1.5 1.5 0 0 0 1.5-1.5V8.5A1.5 1.5 0 0 0 12 7h-1.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>分享</button>`;
 }
 
 /* `series: 名称` in several articles: every part, oldest first, this one marked; folded to the nearest few when long */
