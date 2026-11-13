@@ -1,0 +1,677 @@
+/* ==========================================================================
+   Blog — archive, article, 404
+   ========================================================================== */
+
+/* the top bar floats (base.css); the page starts below the room it takes */
+body:not(.home) { padding-top: var(--topbar); }
+.page-main { min-height: calc(100vh - var(--topbar)); }
+
+/* ---------- archive ---------- */
+/* the archive keeps the home page's scale: one heading, body text, small grey labels */
+.archive-head { padding: clamp(72px, 13vh, 136px) 0 32px; }
+.archive-title { font: 600 clamp(32px, 3.6vw, 44px)/1.15 var(--font-display); letter-spacing: -.02em; }
+.archive-sub { margin-top: 10px; font-size: 17px; color: var(--text-3); }
+
+/* search and tags: two pieces of glass that stay under the top bar while the list scrolls; nothing is drawn
+   across the page between them */
+.filters { position: sticky; top: var(--topbar); z-index: 5; padding: 6px 0 14px; pointer-events: none; }
+.filters-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.filters-row > * { pointer-events: auto; }
+.search-wrap { position: relative; flex: 1 1 280px; max-width: 420px; }
+.search { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 22px; color: var(--text-3); transition: box-shadow .2s; }
+.search:focus-within { box-shadow: var(--glass-rim), var(--glass-drop), 0 0 0 3px color-mix(in srgb, var(--link) 35%, transparent); }
+.search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 16px; }
+.search input::placeholder { color: var(--text-3); }
+.search input::-webkit-search-cancel-button { filter: grayscale(1); opacity: .5; }
+.search svg { flex: none; transition: transform .35s var(--ease-spring), color .2s; }
+.search:focus-within svg { transform: scale(1.1) rotate(-8deg); color: var(--text); }
+
+/* what you type finds articles at once, in a glass panel that drops from the search pill */
+.search-pop {
+  --r: 20px; --pad: 6px;
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 2; max-height: min(60vh, 420px); overflow-y: auto;
+  padding: var(--pad); border-radius: var(--r); transform-origin: top center; animation: pop-in .22s var(--ease-out);
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.search-pop a { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: calc(var(--r) - var(--pad)); }
+.search-pop a:hover, .search-pop a[aria-selected="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.search-pop .t { font-size: 15px; font-weight: 600; line-height: 1.4; color: var(--text); }
+.search-pop .t mark { background: none; color: var(--link); }
+.search-pop .m { font-size: 12px; color: var(--text-3); }
+.search-pop .none { padding: 14px 12px; font-size: 14px; color: var(--text-3); }
+
+/* the tags: a segmented control, its thumb sliding to the one chosen */
+/* a quiet track with one lighter capsule in it, as in iOS: no second rim, nothing darker than the track */
+.filters .seg { --r: 22px; --pad: 4px; position: relative; display: flex; align-items: center; max-width: 100%; height: 44px; padding: var(--pad); border-radius: var(--r); overflow-x: auto; scrollbar-width: none; }
+.filters .seg::-webkit-scrollbar { display: none; }
+.seg-thumb {
+  position: absolute; top: var(--pad); left: 0; height: calc(100% - 2 * var(--pad)); width: var(--w, 0); border-radius: calc(var(--r) - var(--pad));
+  transform: translateX(var(--x, 0)); background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .14);
+}
+html[data-theme="dark"] .seg-thumb { background: color-mix(in srgb, #fff 15%, transparent); box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .14); }
+.chip { position: relative; z-index: 1; flex: none; display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 14px; border: 0; border-radius: calc(var(--r) - var(--pad)); background: transparent; color: var(--text-2); font-size: 14px; cursor: pointer; transition: color .2s, transform .3s var(--ease-spring); }
+.chip:hover, .chip[aria-pressed="true"] { color: var(--text); }
+.chip { font-weight: 500; } /* one weight, chosen or not: the row must not shift as the choice moves */
+.chip .count { font-size: 12px; font-weight: 400; opacity: .6; font-variant-numeric: tabular-nums; }
+/* no script: the thumb cannot slide, so the chosen chip carries the colour itself */
+html:not(.js) .seg-thumb { display: none; }
+html:not(.js) .chip[aria-pressed="true"] { background: var(--card-bg); }
+
+.year { margin-top: 48px; }
+.year-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.year-head h2 { font: 600 17px/1.5 var(--font-sans); }
+.year-head span { font-size: 13px; color: var(--text-3); }
+.post-row a { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: baseline; gap: 24px; padding: 22px 2px; border-bottom: 1px solid var(--line); transition: transform .3s var(--ease-spring); }
+.post-row .date { font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.post-row .title { font-size: 17px; line-height: 1.5; transition: color .2s; }
+.post-row .tags { font-size: 13px; color: var(--text-3); white-space: nowrap; }
+.post-row a:hover .title { color: var(--link); }
+.empty { padding: 96px 0; text-align: center; color: var(--text-3); }
+.archive-foot { margin-top: 96px; }
+
+/* ---------- article ---------- */
+.article { max-width: calc(720px + var(--gutter) * 2); margin: 0 auto; padding: clamp(56px, 10vh, 104px) var(--gutter) 0; }
+.back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); transition: color .2s; }
+.back:hover { color: var(--text); }
+.back svg { transition: transform .3s var(--ease-out); }
+.back:hover svg { transform: translateX(-3px); }
+.article-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 40px; font-size: 13px; color: var(--text-3); }
+.article-title { margin-top: 14px; font: 600 clamp(34px, 5vw, 56px)/1.16 var(--font-display); letter-spacing: -.02em; }
+.article-lead { margin-top: 20px; font-size: 19px; line-height: 1.7; color: var(--text-2); }
+.article-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.article-tags a { height: 30px; display: inline-flex; align-items: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13px; color: var(--text-2); transition: border-color .2s, color .2s; }
+.article-tags a:hover { border-color: var(--line-strong); color: var(--text); }
+
+/* ---------- article body ----------
+   Typography after Apple Newsroom: plain text, quiet grey markers, blue links, notes as soft tinted panels.
+   Pictures and video sit in rounded frames; captions and controls float on frosted glass over them. */
+.prose { margin-top: 44px; padding-top: 40px; border-top: 1px solid var(--line); font-size: 17px; line-height: 1.85; color: var(--text); overflow-wrap: break-word; }
+.prose > * + * { margin-top: 1.2em; }
+.prose h2 { margin-top: 2.4em; font: 600 28px/1.3 var(--font-display); letter-spacing: -.015em; }
+.prose h3 { margin-top: 2em; font: 600 21px/1.4 var(--font-display); letter-spacing: -.01em; }
+.prose h4 { margin-top: 1.8em; font-size: 17px; font-weight: 600; }
+.prose h2 + *, .prose h3 + *, .prose h4 + * { margin-top: .7em; }
+.prose strong { font-weight: 600; }
+.prose del { color: var(--text-3); }
+.prose mark { padding: 0 .15em; border-radius: 4px; background: color-mix(in srgb, #ffd60a 38%, transparent); color: inherit; }
+
+/* links: blue like Apple's, underlined only under the pointer; links that leave the site carry a small arrow */
+.prose a { color: var(--link); text-decoration: none; border-radius: 4px; }
+.prose a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; }
+.prose a[target="_blank"]:not(:has(img))::after { content: "\2197"; display: inline-block; margin-left: .1em; font-size: .78em; line-height: 1; vertical-align: .1em; text-decoration: none; }
+
+/* lists: small grey dots (hollow one level down, a short dash below that), numbers in grey */
+.prose ul, .prose ol { padding-left: 1.55em; }
+.prose ul { list-style: none; }
+.prose ol { list-style: decimal; }
+.prose li { position: relative; }
+.prose li + li { margin-top: .45em; }
+.prose li > ul, .prose li > ol { margin-top: .45em; }
+.prose li > p + p { margin-top: .6em; }
+.prose ul > li::before { content: ""; position: absolute; left: -1.05em; top: calc(.925em - 2.5px); width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+.prose ul ul > li::before { background: none; box-shadow: inset 0 0 0 1.25px var(--text-3); }
+.prose ul ul ul > li::before { top: calc(.925em - .75px); width: 6px; height: 1.5px; border-radius: 1px; background: var(--text-3); box-shadow: none; }
+.prose ol > li::marker { color: var(--text-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* task lists: rounded check boxes */
+.prose ul > li:has(> input[type="checkbox"])::before { display: none; }
+.prose li > input[type="checkbox"] {
+  -webkit-appearance: none; appearance: none; position: absolute; left: -1.55em; top: calc(.925em - 9px);
+  width: 18px; height: 18px; margin: 0; border-radius: 6px; box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.prose li > input[type="checkbox"]:checked {
+  background: var(--link) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 13px no-repeat;
+  box-shadow: none;
+}
+.prose li:has(> input[type="checkbox"]:checked) { color: var(--text-2); }
+
+/* quotes: a slim rounded rule and softer, slightly larger text */
+.prose blockquote { position: relative; margin: 1.8em 0; padding: 0 0 0 1.4em; font-size: 18px; line-height: 1.8; color: var(--text-2); }
+.prose blockquote::before { content: ""; position: absolute; left: 0; top: .35em; bottom: .35em; width: 3px; border-radius: 2px; background: var(--line-strong); }
+.prose blockquote > * + * { margin-top: .8em; }
+
+/* notes: > [!NOTE] … — a soft panel tinted with the note's colour */
+.prose .callout { --c: var(--c-note); margin: 1.8em 0; padding: 16px 20px 18px; border-radius: var(--r-md); background: color-mix(in srgb, var(--c) 8%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 16%, transparent); font-size: 16px; line-height: 1.8; }
+.prose .callout > * + * { margin-top: .6em; }
+.prose .callout.is-tip { --c: var(--c-tip); }
+.prose .callout.is-important { --c: var(--c-important); }
+.prose .callout.is-warning { --c: var(--c-warning); }
+.prose .callout.is-caution { --c: var(--c-caution); }
+.callout-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: .02em; color: var(--c); }
+.callout-title svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prose .callout .callout-title + * { margin-top: .4em; }
+
+/* code */
+.prose code { padding: .12em .42em; border-radius: 6px; background: var(--surface); font: 500 .86em/1.5 var(--font-mono); }
+/* clip, not hidden: hidden would make the block a scroll container and the header could not stick.
+   content-visibility: a block off screen is not laid out or painted until it comes near, which is what keeps a very
+   long article light. Its height is calculated from its number of rows, so the page and the outline's jumps stay exact */
+.prose .codeblock {
+  margin: 1.8em 0; border-radius: var(--r-md); background: var(--surface); overflow: clip; scroll-margin-top: 88px;
+  content-visibility: auto; contain-intrinsic-size: auto calc(80px + var(--rows, 8) * 22.4px);
+}
+.js .prose .codeblock.is-long:not(.is-open) { contain-intrinsic-size: auto calc(105px + var(--fold, 18) * 22.4px); }
+/* the file name and the buttons stay in view, under the top bar, while a long block scrolls past */
+.code-head { position: sticky; top: var(--topbar); z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 42px; padding: 0 8px 0 20px; border-bottom: 1px solid var(--line); background: var(--surface); font-size: 12px; color: var(--text-3); }
+.code-lang { font-weight: 500; letter-spacing: .04em; }
+.code-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 12.5px var(--font-mono); color: var(--text-2); }
+.code-side { display: flex; align-items: center; gap: 10px; flex: none; }
+/* while it is stuck, the block's colour fills the gap above it, so no code runs by behind the top bar. Outside the block
+   this is cut off (overflow: clip), so it shows only then */
+.code-head::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: var(--topbar); background: var(--surface); }
+.code-copy, .code-wrap { height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-3); font-size: 12px; cursor: pointer; transition: background-color .2s, color .2s, transform .3s var(--ease-spring); }
+.code-copy:hover, .code-wrap:hover { background: var(--line); color: var(--text); }
+.code-copy.is-ok { color: var(--ok); }
+.cc-in { display: inline-grid; overflow: hidden; line-height: 28px; }
+.cc-idle, .cc-done { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; transition: transform .35s var(--ease-out), opacity .2s; }
+.cc-done { transform: translateY(100%); opacity: 0; }
+.code-copy.is-done .cc-idle { transform: translateY(-100%); opacity: 0; }
+.code-copy.is-done .cc-done { transform: none; opacity: 1; }
+.cc-check { flex: none; }
+.cc-check path { stroke-dasharray: 1; stroke-dashoffset: 1; }
+.code-copy.is-ok .cc-check path { animation: cc-draw .32s .08s var(--ease-out) forwards; }
+@keyframes cc-draw { to { stroke-dashoffset: 0; } }
+.code-wrap[aria-pressed="true"] { color: var(--link); }
+.code-side > button + button { margin-left: -6px; }
+.prose pre { margin: 0; padding: 18px 0 20px; overflow-x: auto; font-size: 14px; line-height: 1.6; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.prose pre code { display: block; width: max-content; min-width: 100%; padding: 0; background: none; color: var(--x-plain); font-size: inherit; font-weight: 400; line-height: inherit; }
+.prose pre, .prose code { font-variant-ligatures: none; }
+/* every line is a row of its own, so a row can be tinted from edge to edge */
+.prose .line { display: inline-block; min-width: 100%; padding: 0 20px; }
+.prose .line.is-hl { background: var(--x-mark); box-shadow: inset 2px 0 0 var(--link); }        /* ```java {3,5-7} */
+.prose .line.is-add { background: color-mix(in srgb, var(--ok) 12%, transparent); }              /* diff */
+.prose .line.is-del { background: color-mix(in srgb, var(--x-str) 12%, transparent); }
+/* line numbers: a gutter that stays put while the code scrolls sideways; generated text, so copying skips it */
+.prose .has-lines code { counter-reset: ln; }
+.prose .has-lines .line { padding-left: 0; }
+.prose .has-lines .line::before {
+  counter-increment: ln; content: counter(ln);
+  position: sticky; left: 0; z-index: 1; display: inline-block; box-sizing: border-box;
+  width: calc(var(--ln, 2) * 1ch + 38px); padding: 0 18px 0 20px; margin-right: 2px; text-align: right;
+  color: color-mix(in srgb, var(--text-3) 70%, transparent); background: var(--surface);
+  -webkit-user-select: none; user-select: none;
+}
+.prose .has-lines .line.is-hl { box-shadow: none; }
+.prose .has-lines .line.is-hl::before { color: var(--link); background: linear-gradient(var(--x-mark), var(--x-mark)), var(--surface); box-shadow: inset 2px 0 0 var(--link); }
+.prose .has-lines .line.is-add::before { background: linear-gradient(color-mix(in srgb, var(--ok) 12%, transparent), color-mix(in srgb, var(--ok) 12%, transparent)), var(--surface); }
+.prose .has-lines .line.is-del::before { background: linear-gradient(color-mix(in srgb, var(--x-str) 12%, transparent), color-mix(in srgb, var(--x-str) 12%, transparent)), var(--surface); }
+/* wrapped on request: long lines break instead of scrolling sideways, continuation lines hang clear of the numbers */
+.prose .is-wrap pre code { width: auto; min-width: 0; white-space: normal; } /* normal: the line breaks between the rows would otherwise show as empty rows */
+.prose .is-wrap .line { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+.prose .is-wrap.has-lines .line { position: relative; padding-left: calc(var(--ln, 2) * 1ch + 40px); }
+.prose .is-wrap.has-lines .line::before { position: absolute; left: 0; top: 0; margin-right: 0; background: none; }
+/* long blocks fold to their first lines until expanded (only with JavaScript; without it they show in full) */
+.js .prose .codeblock.is-long:not(.is-open) pre {
+  max-height: calc(var(--fold) * 1.6em + 18px); overflow-y: hidden;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 90px), rgba(0, 0, 0, .12)); mask-image: linear-gradient(#000 calc(100% - 90px), rgba(0, 0, 0, .12));
+}
+.code-fold {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 44px; padding: 0;
+  border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text-2); font-size: 13px; cursor: pointer;
+  transition: color .2s, background-color .2s, transform .3s var(--ease-spring);
+}
+.code-fold:hover { color: var(--text); background: color-mix(in srgb, var(--text) 4%, transparent); }
+.code-fold-n { color: var(--text-3); font-variant-numeric: tabular-nums; }
+.code-fold svg { transition: transform .35s var(--ease-out); }
+.codeblock.is-open .code-fold svg { transform: rotate(180deg); }
+.codeblock.is-open .code-fold-n { display: none; }
+
+/* syntax colours, after Xcode's default themes (the values are in base.css) */
+.hljs-comment, .hljs-quote { color: var(--x-com); }
+.hljs-doctag { color: var(--x-com); font-weight: 600; }
+.hljs-string, .hljs-regexp, .hljs-char, .hljs-code { color: var(--x-str); }
+.hljs-number, .hljs-symbol { color: var(--x-num); }
+.hljs-keyword, .hljs-literal, .hljs-variable.language_, .hljs-section, .hljs-selector-tag, .hljs-bullet { color: var(--x-kw); font-weight: 600; }
+.hljs-type, .hljs-built_in, .hljs-title.class_, .hljs-selector-class, .hljs-selector-id, .x-t { color: var(--x-type); }
+.hljs-title.class_.decl__ { color: var(--x-decl); }
+.hljs-title.function_ { color: var(--x-fdecl); }
+.hljs-title.function_.invoke__, .x-f, .x-cmd { color: var(--x-fn); }
+.hljs-property, .hljs-attribute, .hljs-variable, .hljs-template-variable, .x-p, .x-c { color: var(--x-fn); }
+.hljs-attr { color: var(--x-fdecl); }
+.hljs-meta { color: var(--x-attr); }
+.hljs-meta .hljs-string { color: var(--x-str); }
+.hljs-meta .hljs-keyword { color: var(--x-pp); }
+.hljs-name { color: var(--x-kw); }
+.hljs-tag .hljs-attr { color: var(--x-attr); }
+.hljs-link { color: var(--x-url); text-decoration: underline; }
+.hljs-addition { color: var(--ok); }
+.hljs-deletion { color: var(--x-str); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 600; }
+.hljs-params, .hljs-operator, .hljs-punctuation, .hljs-subst, .x-path { color: inherit; font-weight: inherit; }
+/* a few languages read better with small adjustments */
+.language-c .hljs-meta, .language-cpp .hljs-meta { color: var(--x-pp); }
+:is(.language-java, .language-kotlin, .language-go, .language-rust) .hljs-variable { color: inherit; } /* a name being declared stays plain, as in Xcode */
+:is(.language-java, .language-kotlin) .hljs-built_in { color: var(--x-kw); font-weight: 600; } /* this, super */
+:is(.language-typescript, .language-javascript) .hljs-attr { color: inherit; }
+:is(.language-bash, .language-shell, .language-python, .language-sql, .language-dockerfile) .hljs-built_in { color: var(--x-fn); }
+.prose kbd { display: inline-block; min-width: 1.7em; padding: 0 .45em; border-radius: 6px; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line), inset 0 -1.5px 0 var(--line-strong); font: 500 .8em/1.75 var(--font-sans); text-align: center; color: var(--text-2); }
+
+/* tables: hairlines only, grey column titles, numbers lined up; wide ones scroll sideways */
+.prose .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.prose table { width: 100%; border-collapse: collapse; font-size: 15px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.prose th, .prose td { padding: 12px 20px 12px 0; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.prose th { padding-top: 0; font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--text-3); border-bottom-color: var(--line-strong); }
+.prose th:last-child, .prose td:last-child { padding-right: 0; }
+.prose hr { margin: 3em 0; border: 0; border-top: 1px solid var(--line); }
+.prose img.inline { display: inline-block; width: auto; max-height: 1.6em; margin: 0 .1em; vertical-align: -.3em; border-radius: 4px; }
+
+/* ---------- pictures and video ---------- */
+/* .mg, the captions and the like are glass on a picture: base.css, Materials */
+.mg-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; cursor: pointer; transition: transform .3s var(--ease-spring), opacity .25s; }
+@media (hover: hover) { .mg-btn:hover { transform: scale(1.07); } } /* on a touch screen "hover" stays on after a tap */
+.mg-btn:active { transform: scale(.96); }
+
+/* the frame: as wide as the column, or narrower so a tall picture stays within the screen */
+.prose .media { position: relative; width: min(100%, var(--w, 100%), calc(80vh * var(--ar, 100))); margin: 2.2em auto; border-radius: var(--r-md); overflow: hidden; background: var(--surface); isolation: isolate; }
+.prose .media::after { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); pointer-events: none; }
+.prose .media picture, .prose .media img, .prose .media video { display: block; width: 100%; height: auto; margin: 0; }
+/* off screen, a picture or video is not laid out or painted until it comes near. Its height comes from its proportions,
+   by the same rule as the frame's width above, so the page does not shift when it arrives */
+.prose > .media.is-image:not(.is-small), .prose > .media.is-video {
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(min(720px, 100vw - 2 * var(--gutter), var(--w, 720px), 80vh * var(--ar, 1.7778)) / var(--ar, 1.7778));
+}
+/* while the picture loads: a tiny copy of it, blurred, fills the frame; the picture fades in over it (media.js) */
+.media-ph { position: absolute; inset: 0; z-index: 0; background: center / cover no-repeat; filter: blur(18px); transform: scale(1.15); pointer-events: none; }
+html:not(.js) .media-ph { display: none; }
+.prose .media picture { position: relative; z-index: 1; }
+.prose .media.is-loading picture img { opacity: 0; }
+.prose .media picture img { transition: opacity .5s var(--ease-out); }
+.prose .media.is-image { cursor: zoom-in; }
+.prose .media-cap {
+  position: absolute; left: 12px; bottom: 12px; z-index: 3; max-width: min(calc(100% - 24px), 520px);
+  transition: opacity .3s;
+  pointer-events: none; /* clicks go through to the picture or the video controls under it */
+}
+/* small pictures, and pictures of unknown size, keep a plain caption underneath */
+.prose .media.is-small, .prose .media.is-raw { overflow: visible; background: none; }
+.prose .media.is-small::after, .prose .media.is-raw::after { display: none; }
+.prose .media.is-small img, .prose .media.is-raw img { border-radius: var(--r-md); }
+.prose .media.is-raw { width: fit-content; max-width: 100%; }
+.prose .media.is-raw img { width: auto; max-width: 100%; }
+.prose .media.is-small .media-cap, .prose .media.is-raw .media-cap { position: static; max-width: none; margin-top: 10px; padding: 0; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--text-3); text-align: center; }
+.media-zoom { position: absolute; top: 12px; right: 12px; z-index: 3; width: 32px; height: 32px; opacity: 0; }
+/* round glass buttons: the icon says what will happen before it does */
+.mg-btn svg { transition: transform .3s var(--ease-spring); }
+@media (hover: hover) {
+  .media-zoom:hover svg { transform: scale(1.15); }
+  .lb-close:hover svg { transform: rotate(90deg); }
+  .lb-prev:hover svg, .stack-nav button:first-child:hover svg { transform: translateX(-2px); }
+  .lb-next:hover svg, .stack-nav button:last-child:hover svg { transform: translateX(2px); }
+}
+.prose .media:hover .media-zoom, .media-zoom:focus-visible { opacity: 1; }
+.prose .media.is-small .media-zoom, .prose .media.is-raw .media-zoom { display: none; }
+.prose .media:focus-within:has(.media-zoom:focus-visible) { outline: 2px solid var(--text); outline-offset: 3px; }
+
+/* video: a round glass play button over the cover, then a slim glass bar that fades while it plays */
+.prose .media.is-video video { aspect-ratio: auto 16 / 9; background: #000; }
+/* a round lens of clear glass in the middle of the cover */
+.player-big { position: absolute; left: 50%; top: 50%; z-index: 3; width: 76px; height: 76px; margin: -38px 0 0 -38px; transition: transform .35s var(--ease-spring), opacity .3s; }
+.player-big:hover { transform: scale(1.08); }
+.player-big svg { width: 28px; height: 28px; margin-left: 3px; }
+.prose .media:is([data-state="playing"], [data-state="paused"]) .player-big { opacity: 0; transform: scale(.85); pointer-events: none; }
+.prose .media:is([data-state="playing"], [data-state="paused"], [data-state="ended"]) .media-cap { opacity: 0; }
+/* the controls: a capsule floating over the foot of the picture, round buttons inside it */
+.player-bar {
+  position: absolute; left: 14px; right: 14px; bottom: 14px; z-index: 3; display: flex; align-items: center; gap: 4px;
+  height: 46px; padding: 0 7px; border-radius: 23px; opacity: 0; transform: translateY(8px) scale(.98); pointer-events: none;
+  transition: opacity .3s, transform .4s var(--ease-spring);
+}
+.prose .media[data-state="paused"] .player-bar, .prose .media[data-state="playing"][data-ui="on"] .player-bar { opacity: 1; transform: none; pointer-events: auto; }
+.prose .media[data-state="playing"][data-ui="off"] { cursor: none; }
+.pb-btn { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; transition: background-color .2s, transform .3s var(--ease-spring); }
+.pb-btn:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.pb-btn svg { transition: scale .25s var(--ease-spring), opacity .2s, transform .35s var(--ease-spring); }
+.pb-btn:hover svg { scale: 1.1; }
+/* two icons in one place: the one showing turns away as the other turns in */
+.pb-swap svg { grid-area: 1 / 1; }
+.pb-swap svg:last-child, .pb-swap.is-alt svg:first-child { opacity: 0; transform: scale(.55) rotate(-40deg); }
+.pb-swap.is-alt svg:first-child { transform: scale(.55) rotate(40deg); }
+.pb-swap.is-alt svg:last-child { opacity: 1; transform: none; }
+/* the speaker's waves go out one at a time as the volume falls, and a cross comes in at nothing */
+.pb-vol .pb-btn :is(.v-1, .v-2, .v-x) { transform-box: fill-box; transition: opacity .2s, transform .25s var(--ease-out); }
+.pb-vol .pb-btn :is(.v-1, .v-2) { transform-origin: left center; }
+.pb-vol .pb-btn .v-x { transform-origin: center; opacity: 0; transform: scale(.5) rotate(-45deg); }
+.pb-vol .pb-btn[data-level="1"] .v-2, .pb-vol .pb-btn[data-level="0"] :is(.v-1, .v-2) { opacity: 0; transform: scale(.7); }
+.pb-vol .pb-btn[data-level="0"] .v-x { opacity: 1; transform: none; }
+.pb-time, .pb-dur { flex: none; min-width: 34px; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; text-align: center; opacity: .85; }
+.pb-dur:empty { display: none; }
+.pb-seek, .pb-range {
+  height: 16px; background: none; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+.pb-seek { flex: 1; min-width: 40px; margin: 0 4px; }
+.pb-seek::-webkit-slider-runnable-track, .pb-range::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, currentColor var(--p, 0%), color-mix(in srgb, currentColor 26%, transparent) var(--p, 0%)); }
+.pb-seek::-moz-range-track, .pb-range::-moz-range-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, currentColor var(--p, 0%), color-mix(in srgb, currentColor 26%, transparent) var(--p, 0%)); }
+.pb-seek::-webkit-slider-thumb, .pb-range::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; background: currentColor; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); transition: transform .15s; }
+.pb-seek::-moz-range-thumb, .pb-range::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: currentColor; box-shadow: 0 1px 4px rgba(0, 0, 0, .3); }
+.pb-seek:hover::-webkit-slider-thumb, .pb-range:hover::-webkit-slider-thumb { transform: scale(1.25); }
+/* the volume slider opens out of the speaker button, taking its room from the progress bar */
+.pb-vol { display: flex; align-items: center; flex: none; }
+.pb-vol-range { flex: none; width: 0; margin: 0; opacity: 0; pointer-events: none; transition: width .3s var(--ease-out), margin .3s var(--ease-out), opacity .2s; }
+.pb-vol:hover .pb-vol-range, .pb-vol:has(:focus-visible) .pb-vol-range, .pb-vol-range:active { width: 72px; margin: 0 2px 0 8px; opacity: 1; pointer-events: auto; }
+@media (hover: none) { .pb-vol-range { display: none; } }
+.prose .media.is-waiting .player-big { opacity: 1; animation: pb-wait 1s ease-in-out infinite alternate; }
+@keyframes pb-wait { to { opacity: .45; } }
+.prose .media.is-video:fullscreen { width: 100%; height: 100%; border-radius: 0; background: #000; }
+.prose .media.is-video:fullscreen video { width: 100%; height: 100%; object-fit: contain; aspect-ratio: auto; }
+.prose .media.is-video:fullscreen .pb-web { display: none; }
+/* filling the browser window (media.js): the same figure, taken out of the text */
+.prose > .media.is-video.is-webfull {
+  position: fixed; left: 0; top: 0; z-index: 300; width: 100vw; height: 100dvh; max-width: none; margin: 0; border-radius: 0;
+  background: #000; content-visibility: visible; outline: none;
+}
+.prose .media.is-video.is-webfull video { width: 100%; height: 100%; object-fit: contain; aspect-ratio: auto; border-radius: 0; }
+/* a wide window: the controls stay a comfortable length, and the way out stays in view when the video has ended */
+.prose .media.is-video:is(.is-webfull, :fullscreen) .player-bar { left: max(14px, calc(50% - 420px)); right: max(14px, calc(50% - 420px)); bottom: max(14px, env(safe-area-inset-bottom)); }
+.prose .media.is-video:is(.is-webfull, :fullscreen)[data-state="ended"] .player-bar { opacity: 1; transform: none; pointer-events: auto; }
+
+/* stacks: neighbouring pictures as a deck of cards, the ones behind peeking out underneath */
+.prose .stack { position: relative; width: min(100%, calc(74vh * var(--ar))); margin: 2.2em auto; }
+.js .prose .stack { aspect-ratio: var(--ar); margin-bottom: calc(2.2em + 22px); touch-action: pan-y; -webkit-user-select: none; user-select: none; border-radius: var(--r-md); }
+.js .prose .stack:focus-visible { outline: 2px solid var(--text); outline-offset: 6px; }
+.js .prose .stack .stack-card { position: absolute; inset: 0; width: auto; margin: 0; transform-origin: 50% 100%; transition: transform .55s var(--ease-out), opacity .45s ease; }
+.js .prose .stack-card picture { position: relative; z-index: 1; width: 100%; height: 100%; }
+.js .prose .stack-card picture img { width: 100%; height: 100%; object-fit: contain; }
+.prose .media-fill { display: none; }
+.js .prose .media .media-fill { display: block; position: absolute; inset: -15%; z-index: 0; width: 130%; max-width: none; height: 130%; object-fit: cover; filter: blur(44px) saturate(1.4) brightness(.82); }
+.js .prose .media:has(.media-fill) picture img { filter: drop-shadow(0 12px 32px rgba(0, 0, 0, .38)); } /* the picture floats over its own blurred colours */
+.js .prose .stack-card::before { content: ""; position: absolute; inset: 0; z-index: 2; background: var(--bg); opacity: 0; transition: opacity .45s; pointer-events: none; }
+.js .prose .stack-card[data-depth="0"] { z-index: 4; }
+.js .prose .stack-card[data-depth="1"] { z-index: 3; transform: translateY(12px) scale(.95); }
+.js .prose .stack-card[data-depth="1"]::before { opacity: .38; }
+.js .prose .stack-card[data-depth="2"] { z-index: 2; transform: translateY(22px) scale(.9); }
+.js .prose .stack-card[data-depth="2"]::before { opacity: .62; }
+.js .prose .stack-card[data-depth="3"] { z-index: 1; transform: translateY(22px) scale(.9); opacity: 0; }
+.js .prose .stack-card:not([data-depth="0"]) .media-cap { opacity: 0; }
+.js .prose .stack-card .media-cap { max-width: calc(100% - 112px); }
+.js .prose .stack-card.is-leaving { z-index: 6; transform: translateX(-112%) rotate(-7deg); opacity: 0; transition: transform .45s cubic-bezier(.4, 0, .2, 1), opacity .45s ease; }
+.js .prose .stack-card.no-anim, .js .prose .stack-card.no-anim::before { transition: none !important; }
+.stack-ui { position: absolute; inset: 0; z-index: 8; pointer-events: none; }
+.stack-count { position: absolute; top: 12px; right: 12px; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.stack-nav { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 8px; pointer-events: auto; }
+
+/* full screen: the page blurs behind frosted glass and the picture grows out of the text */
+.lightbox { position: fixed; inset: 0; z-index: 300; display: none; overscroll-behavior: contain; touch-action: none; }
+.lightbox.is-open { display: block; }
+html.lb-lock { overflow: hidden; }
+.lb-backdrop {
+  position: absolute; inset: 0; opacity: 0; transition: opacity .4s ease;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(150%); backdrop-filter: blur(30px) saturate(150%);
+}
+.lb-box { position: fixed; transform-origin: 0 0; border-radius: var(--r-md); overflow: hidden; background: center / cover no-repeat var(--surface); box-shadow: 0 30px 90px rgba(0, 0, 0, .35); transition: transform .5s var(--ease-out), opacity .35s ease; }
+.lb-box picture, .lb-box img { display: block; width: 100%; height: 100%; }
+.lb-img { opacity: 0; transition: opacity .3s; }
+.lb-img.is-loaded { opacity: 1; }
+.lb-close, .lb-prev, .lb-next, .lb-cap, .lb-count { position: fixed; z-index: 2; opacity: 0; transition: opacity .3s ease, transform .25s var(--ease-out); }
+.lightbox.is-shown :is(.lb-close, .lb-prev, .lb-next, .lb-cap, .lb-count), .lightbox.is-shown .lb-backdrop { opacity: 1; }
+/* round glass buttons and a capsule of a caption, like Photos */
+.lb-close { top: 18px; right: 18px; width: 44px; height: 44px; }
+.lb-prev, .lb-next { top: 50%; width: 48px; height: 48px; margin-top: -24px; }
+.lb-prev { left: 18px; }
+.lb-next { right: 18px; }
+.lb-count { top: 26px; left: 50%; translate: -50% 0; padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.lb-cap { bottom: 28px; left: 50%; translate: -50% 0; max-width: min(calc(100vw - 32px), 640px); margin: 0; padding: 9px 18px; border-radius: 20px; font-size: 14px; line-height: 1.5; text-align: center; }
+.lb-cap[hidden], .lb-count[hidden], .lb-prev[hidden], .lb-next[hidden] { display: none; }
+/* enlarged or turned: everything that would be in the way steps aside, and the way back takes the caption's place */
+.lb-reset { position: fixed; z-index: 2; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); translate: -50% 0; height: 40px; padding: 0 20px; border: 0; border-radius: 20px; font-size: 14px; font-weight: 500; cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+.lightbox.is-shown.is-zoomed .lb-reset { opacity: 1; pointer-events: auto; }
+.lightbox.is-shown.is-zoomed :is(.lb-prev, .lb-next, .lb-cap, .lb-count) { opacity: 0; pointer-events: none; }
+@media (max-width: 720px) {
+  /* on the picture's own centre line (media.js leaves 68px above it and 92px below), at its edges: next to what they
+     turn, and under the thumb. The caption goes in the room left below the picture, not over it */
+  .lb-prev, .lb-next { top: calc(50% - 12px); width: 40px; height: 40px; margin-top: -20px; }
+  .lb-prev { left: 8px; } .lb-next { right: 8px; }
+  .lb-cap { bottom: max(20px, env(safe-area-inset-bottom)); }
+  .lb-close { top: 14px; right: 14px; }
+  .prose .media-cap { left: 10px; bottom: 10px; max-width: calc(100% - 20px); }
+  .js .prose .stack-card .media-cap { max-width: calc(100% - 104px); }
+  .player-bar { left: 8px; right: 8px; bottom: 8px; height: 40px; padding: 0 4px; gap: 2px; border-radius: 20px; }
+  .pb-btn { width: 32px; height: 32px; }
+  .pb-time, .pb-web { display: none; } /* on a phone the browser window is nearly the whole screen: full screen is the one to have */
+  .player-big { width: 60px; height: 60px; margin: -30px 0 0 -30px; }
+}
+/* ---------- albums ---------- */
+.albums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px 24px; padding-top: 8px; }
+.album-card { display: block; transition: transform .3s var(--ease-spring); }
+.album-cover { position: relative; display: block; aspect-ratio: 3 / 2; overflow: hidden; border-radius: var(--r-md); background: var(--surface); }
+.album-cover::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); pointer-events: none; }
+.album-cover picture { position: relative; z-index: 1; display: block; width: 100%; height: 100%; }
+.album-cover img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .6s var(--ease-out); }
+.album-card:hover .album-cover img { transform: scale(1.025); }
+.album-cover .tile-name { position: absolute; left: 12px; bottom: 12px; z-index: 3; max-width: calc(100% - 24px); }
+.album-info { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text-3); }
+.album-card .album-info { margin-top: 12px; }
+.album-draft { color: #ff9f0a; }
+.album-desc { display: block; margin-top: 4px; font-size: 15px; line-height: 1.6; color: var(--text-2); }
+
+/* one album: the photos along a line of time, the dates staying beside them as you scroll */
+.album-page { max-width: calc(1040px + var(--gutter) * 2); margin: 0 auto; padding: clamp(56px, 10vh, 104px) var(--gutter) 0; }
+.album-head { margin-top: 32px; padding-bottom: 8px; }
+.album-title { font: 600 clamp(32px, 3.6vw, 44px)/1.15 var(--font-display); letter-spacing: -.02em; scroll-margin-top: 120px; }
+.album-lead { max-width: 640px; margin-top: 12px; font-size: 17px; line-height: 1.7; color: var(--text-2); }
+.album-head .album-info { margin-top: 14px; }
+.timeline { --dot: 9px; --rail: 148px; position: relative; margin-top: 40px; }
+.timeline::before { content: ""; position: absolute; left: calc(var(--dot) / 2 - .5px); top: 10px; bottom: 0; width: 1px; background: var(--line); }
+.tl-day { position: relative; display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); padding-bottom: 56px; scroll-margin-top: calc(var(--topbar) + 16px); }
+.tl-date { position: sticky; top: calc(var(--topbar) + 16px); align-self: start; display: flex; flex-direction: column; gap: 2px; padding-left: 26px; }
+.tl-dot { position: absolute; left: 0; top: 7px; width: var(--dot); height: var(--dot); border-radius: 50%; background: var(--text); box-shadow: 0 0 0 4px var(--bg); }
+.tl-year { font-size: 13px; color: var(--text-3); }
+.tl-label { font-size: 15px; font-weight: 600; line-height: 1.5; }
+.tl-count { font-size: 13px; color: var(--text-3); }
+.tl-note { margin-bottom: 14px; font-size: 16px; line-height: 1.7; color: var(--text-2); }
+/* rows that keep every photo's own shape: each grows in proportion to its width, and the last row is not stretched */
+.photos { --rh: 230px; display: flex; flex-wrap: wrap; gap: 8px; }
+.photos::after { content: ""; flex-grow: 999; }
+.photos.is-one { --rh: 400px; }
+.album-photo { position: relative; flex: calc(var(--ar) * 100) 1 calc(var(--ar) * var(--rh)); max-width: 100%; aspect-ratio: var(--ar); margin: 0; overflow: hidden; border-radius: var(--r-sm); background: var(--surface); cursor: zoom-in; isolation: isolate; }
+.album-photo::after { content: ""; position: absolute; inset: 0; z-index: 4; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); pointer-events: none; }
+.album-photo:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+.album-photo picture { position: relative; z-index: 1; display: block; width: 100%; height: 100%; }
+.album-photo img { display: block; width: 100%; height: 100%; object-fit: cover; transition: opacity .5s var(--ease-out), transform .6s var(--ease-out); }
+.album-photo:hover img { transform: scale(1.025); }
+.album-photo.is-loading picture img { opacity: 0; }
+/* a note on its picture: one line here, all of it in the full-screen view */
+.album-photo .media-cap { position: absolute; left: 8px; bottom: 8px; z-index: 3; max-width: calc(100% - 16px); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
+/* in an article: a few of the album's photos, and the way to the rest */
+.album-embed { margin: 2.2em 0; }
+.js .prose .album-embed .stack { margin-top: 0; margin-bottom: 34px; }
+.prose .album-embed .media { margin-top: 0; }
+.prose .album-more { margin: 0; }
+.prose .album-more a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: 15px; font-weight: 500; text-decoration: none; transition: background-color .2s, transform .3s var(--ease-spring); }
+.prose .album-more a:hover { background: color-mix(in srgb, var(--text) 8%, var(--surface)); }
+.prose .album-more a:active { transform: scale(.985); transition-duration: .1s; }
+.album-more-go { display: inline-flex; align-items: center; flex: none; gap: 6px; font-size: 13px; font-weight: 400; color: var(--text-3); }
+.album-more-go svg { transition: transform .3s var(--ease-out); }
+.album-more a:hover .album-more-go svg { transform: translateX(3px); }
+@media (max-width: 760px) {
+  .albums { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .timeline { --rail: 0; }
+  .tl-day { grid-template-columns: minmax(0, 1fr); padding-bottom: 40px; }
+  .tl-date { position: relative; top: auto; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-bottom: 12px; }
+  .tl-body { padding-left: 26px; }
+  .photos { --rh: 130px; gap: 6px; }
+  .photos.is-one { --rh: 220px; }
+}
+@media print {
+  .timeline::before, .tl-dot { display: none; }
+}
+
+.post-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 72px; }
+.post-nav a { display: flex; flex-direction: column; gap: 6px; padding: 20px 24px; border-radius: var(--r-md); background: var(--surface); transition: background-color .25s, transform .3s var(--ease-spring); }
+.post-nav a:hover { background: var(--surface-2); }
+.post-nav .label { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--text-3); }
+.post-nav .t { font-size: 16px; font-weight: 500; line-height: 1.45; }
+.post-nav .next { text-align: right; grid-column: 2; }
+.article-foot { margin-top: 96px; }
+
+/* ---------- comments ----------
+   Monogram avatars like Contacts, a quiet hairline between threads; the form uses the same soft fields as the search */
+.comments { margin-top: 72px; padding-top: 40px; border-top: 1px solid var(--line); scroll-margin-top: 88px; }
+.cm-title { margin-top: 10px; font: 600 28px/1.3 var(--font-display); letter-spacing: -.015em; }
+.cm-count { margin-left: .4em; font-weight: 500; color: var(--text-3); }
+.cm-notice { margin-top: 20px; padding: 14px 18px; border-radius: 14px; background: var(--surface); font-size: 14px; color: var(--text-2); }
+.cm-list { margin-top: 20px; }
+/* comments on their way: a few square dots, the same pixels as the theme button. Only for a slow connection (comments.js) */
+.cm-loading { display: flex; justify-content: center; gap: 5px; margin-top: 72px; padding: 40px 0; animation: cm-load-in .3s var(--ease-out); }
+.cm-loading i { width: 4px; height: 4px; background: var(--text-3); animation: cm-dot 1.1s ease-in-out infinite; }
+.cm-loading i:nth-child(2) { animation-delay: .09s; }
+.cm-loading i:nth-child(3) { animation-delay: .18s; }
+.cm-loading i:nth-child(4) { animation-delay: .27s; }
+.cm-loading i:nth-child(5) { animation-delay: .36s; }
+@keyframes cm-load-in { from { opacity: 0; } }
+@keyframes cm-dot { 0%, 60%, 100% { transform: none; opacity: .4; } 30% { transform: translateY(-6px); opacity: 1; } }
+.cm-empty { margin-top: 20px; font-size: 15px; color: var(--text-3); }
+
+.cm-item { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; padding: 22px 0; border-top: 1px solid var(--line); scroll-margin-top: 120px; }
+.cm-list > .cm-item:first-child { border-top: 0; }
+.cm-avatar {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: linear-gradient(180deg, #a5aab7, #858a96); color: #fff;
+  font: 600 16px/1 var(--font-sans); -webkit-user-select: none; user-select: none;
+}
+.cm-item.is-owner > .cm-avatar { background: var(--text); color: var(--bg); }
+/* my own replies read like a message bubble: a soft tint of the link blue, rounded, the corner by my avatar tucked in */
+.cm-item.is-owner > .cm-body > .cm-text { display: inline-block; max-width: 100%; margin-top: 8px; padding: 10px 16px; border-radius: 4px 20px 20px 20px; background: color-mix(in srgb, var(--link) 11%, transparent); }
+.cm-body { min-width: 0; }
+.cm-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; min-height: 22px; font-size: 15px; line-height: 1.45; }
+.cm-name { font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+a.cm-name { transition: color .2s; }
+a.cm-name:hover { color: var(--link); }
+.cm-badge { align-self: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.4; letter-spacing: .04em; background: color-mix(in srgb, var(--link) 14%, transparent); color: var(--link); }
+.cm-badge.is-pending { background: color-mix(in srgb, var(--c-warning) 15%, transparent); color: var(--c-warning); }
+.cm-badge.is-approved { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.cm-time { font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; transition: color .2s; }
+a.cm-time:hover { color: var(--text-2); }
+.cm-text { margin-top: 6px; font-size: 16px; line-height: 1.75; overflow-wrap: anywhere; }
+.cm-text p + p { margin-top: .7em; }
+.cm-text a { color: var(--link); }
+.cm-text a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; }
+.cm-tools { display: flex; gap: 18px; margin-top: 6px; }
+.cm-link { padding: 0; border: 0; background: none; font-size: 13px; color: var(--text-3); cursor: pointer; transition: color .2s; }
+.cm-link:hover { color: var(--text); }
+.cm-replies { margin-top: 4px; }
+.cm-replies .cm-item { grid-template-columns: 30px minmax(0, 1fr); gap: 12px; padding: 16px 0 2px; border-top: 0; }
+.cm-replies .cm-avatar { width: 30px; height: 30px; font-size: 12.5px; }
+.cm-item.is-pending > .cm-body > .cm-text { color: var(--text-2); }
+.cm-item.is-target > .cm-body { animation: cm-flash 2.4s var(--ease-out); border-radius: 10px; }
+@keyframes cm-flash { 0%, 40% { background: color-mix(in srgb, var(--link) 10%, transparent); box-shadow: 0 0 0 8px color-mix(in srgb, var(--link) 10%, transparent); } }
+
+.cm-form { margin-top: 28px; container-type: inline-size; }
+.cm-item .cm-form { margin: 14px 0 6px; }
+.cm-replying { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 14px; color: var(--text-2); }
+.cm-replying b { font-weight: 600; color: var(--text); }
+/* the composer: a capsule of glass with a round send button, growing with what is written */
+.cm-compose { --r: 24px; --pad: 6px; display: flex; align-items: flex-end; gap: 8px; padding: var(--pad) var(--pad) var(--pad) 18px; border-radius: var(--r); transition: box-shadow .2s; }
+.cm-compose:focus-within { box-shadow: var(--glass-rim), var(--glass-drop), 0 0 0 3px color-mix(in srgb, var(--link) 30%, transparent); }
+.cm-box { display: block; flex: 1; min-width: 0; }
+.cm-box textarea {
+  display: block; width: 100%; min-height: 36px; max-height: 40vh; padding: 7px 0; border: 0; outline: 0;
+  background: transparent; color: var(--text); font: inherit; font-size: 16px; line-height: 22px; resize: none; field-sizing: content;
+}
+.cm-form.is-open .cm-box textarea { min-height: 88px; }
+.cm-box textarea::placeholder { color: var(--text-3); }
+.cm-send {
+  display: grid; place-items: center; flex: none; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 14%, transparent); color: var(--bg); cursor: pointer;
+  transition: background-color .25s, transform .3s var(--ease-spring);
+}
+.cm-form.has-text .cm-send { background: #0071e3; color: #fff; }
+.cm-form.has-text .cm-send:hover { transform: scale(1.06); }
+.cm-send[disabled] { opacity: .45; cursor: default; transform: none; }
+/* the rest of the form slides open beneath it */
+.cm-more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .4s var(--ease-out); }
+.cm-more-in { min-height: 0; overflow: hidden; opacity: 0; transition: opacity .3s; }
+.cm-form.is-open .cm-more { grid-template-rows: 1fr; }
+.cm-form.is-open .cm-more-in { opacity: 1; }
+.cm-field { display: block; border-radius: var(--r-sm); background: var(--surface); transition: box-shadow .2s; }
+.cm-field:focus-within { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.cm-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+/* fields with the label inside, moving up once there is text (as on Apple's own forms) */
+.cm-field { position: relative; height: 54px; }
+.cm-field input {
+  position: absolute; inset: 0; width: 100%; height: 100%; padding: 20px 14px 4px; border: 0; border-radius: inherit; outline: 0;
+  background: transparent; color: var(--text); font: inherit; font-size: 16px; line-height: 1.4;
+}
+.cm-label {
+  position: absolute; left: 14px; right: 14px; top: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 15px; line-height: 22px; color: var(--text-3); pointer-events: none; transform-origin: 0 0;
+  transition: transform .22s var(--ease-out);
+}
+.cm-field input:focus + .cm-label, .cm-field input:not(:placeholder-shown) + .cm-label { transform: translateY(-9px) scale(.76); }
+.cm-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.cm-actions { display: flex; align-items: center; gap: 16px; margin-top: 10px; padding: 0 4px 4px; }
+.cm-note { flex: 1; font-size: 13px; color: var(--text-3); }
+.cm-len { font-size: 12px; color: var(--text-3); }
+.cm-len.is-over { color: var(--c-caution); }
+.cm-status { margin-top: 10px; font-size: 14px; color: var(--text-2); }
+.cm-status:empty { display: none; }
+.cm-status.is-error { color: var(--c-caution); }
+.cm-status.is-ok { color: var(--ok); }
+@container (max-width: 560px) {
+  .cm-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* the admin editor's preview (an article inside a frame) */
+.ed-preview-body .article { padding: 28px clamp(20px, 4vw, 40px) 72px; }
+.ed-preview-body .article-title { margin-top: 0; font-size: clamp(28px, 3.4vw, 40px); }
+.ed-preview-body .prose img { border-radius: var(--r-md); }
+
+/* ---------- 404 ---------- */
+.notfound { min-height: calc(100vh - var(--topbar)); display: grid; place-content: center; text-align: center; padding: 48px var(--gutter); }
+.notfound .code { font: 600 clamp(88px, 16vw, 180px)/1 var(--font-display); letter-spacing: -.05em; }
+.notfound p { margin-top: 16px; color: var(--text-2); }
+.notfound .btn { margin: 32px auto 0; }
+
+@media (max-width: 720px) {
+  .post-row a { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; }
+  .post-row .title { grid-column: 1 / -1; grid-row: 2; }
+  .post-nav { grid-template-columns: minmax(0, 1fr); }
+  .post-nav .next { grid-column: 1; }
+}
+
+/* headings land just below the sticky bar when picked from the outline */
+.prose h2, .prose h3, .article-title { scroll-margin-top: 88px; }
+
+/* ---------- printing, and "save as PDF" ----------
+   always the light colours (paper is white), no navigation or controls, folded code and stacks laid out in full */
+@media print {
+  html[data-theme] {
+    color-scheme: light;
+    --bg: #fff; --surface: #f5f5f7; --surface-2: #ebebf0; --text: #1d1d1f; --text-2: #424245; --text-3: #6e6e73;
+    --line: rgba(0, 0, 0, .12); --line-strong: rgba(0, 0, 0, .3); --link: #0066cc;
+    --media-edge: rgba(0, 0, 0, .08);
+    /* printers leave out backgrounds, so white words would vanish: on paper a caption is dark words on white */
+    --pic-tint: rgba(255, 255, 255, .85); --pic-filter: none; --pic-ink: #1d1d1f; --pic-rim: inset 0 0 0 1px rgba(0, 0, 0, .08); --pic-drop: 0 0 0 transparent;
+    --c-note: #0071e3; --c-tip: #248a3d; --c-important: #8944ab; --c-warning: #b25000; --c-caution: #d70015;
+    --x-plain: rgba(0, 0, 0, .85); --x-com: #5d6c79; --x-str: #c41a16; --x-num: #1c00cf; --x-kw: #9b2393; --x-type: #3900a0;
+    --x-decl: #0b4f79; --x-fn: #6c36a9; --x-fdecl: #0f68a0; --x-attr: #815f03; --x-pp: #643820; --x-url: #0e0eff; --x-mark: rgba(0, 113, 227, .08);
+  }
+  body { background: #fff; }
+  .prose .codeblock, .prose .media { content-visibility: visible; }
+  .code-head { position: static; }
+  .media-ph { display: none; }
+  .prose .media.is-loading picture img { opacity: 1; }
+  /* these marks are drawn as backgrounds, which printers skip unless told otherwise */
+  .prose ul > li::before, .prose li > input[type="checkbox"], .prose .line.is-hl::before { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .topbar, .sidenav, .skip-link, .back, .post-nav, .comments, .article-foot, .vt-overlay, .lightbox,
+  .code-copy, .code-fold, .media-zoom, .stack-ui, .player-big, .player-bar { display: none !important; }
+  .article { padding-top: 0; }
+  .prose a[target="_blank"]:not(:has(img))::after { content: " (" attr(href) ")"; font-size: .8em; vertical-align: baseline; color: var(--text-3); }
+  .prose .codeblock, .prose .media, .prose .callout, .prose blockquote, .prose .table-wrap { break-inside: avoid; }
+  .prose h2, .prose h3 { break-after: avoid; }
+  /* long code: everything, wrapped to the page width */
+  .js .prose .codeblock.is-long:not(.is-open) pre { max-height: none; -webkit-mask-image: none; mask-image: none; }
+  .prose pre { overflow: visible; }
+  .prose pre code { width: auto; }
+  .prose .line { min-width: 0; max-width: 100%; white-space: pre-wrap; word-break: break-all; }
+  .prose .has-lines .line::before { position: static; }
+  /* a stack: its pictures one after another */
+  .js .prose .stack { aspect-ratio: auto; width: 100%; margin-bottom: 2.2em; }
+  .js .prose .stack .stack-card { position: relative; inset: auto; margin: 0 0 16px; transform: none; opacity: 1; }
+  .js .prose .stack-card::before { display: none; }
+  .js .prose .stack-card .media-cap { opacity: 1; }
+  .js .prose .stack-card picture, .js .prose .stack-card picture img { height: auto; }
+  .js .prose .media .media-fill { display: none; }
+}

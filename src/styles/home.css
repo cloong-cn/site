@@ -1,0 +1,367 @@
+/* ==========================================================================
+   Home — the planet scene, then sections that simply scroll.
+   (The ruler navigation further down serves the articles' outline.)
+   ========================================================================== */
+
+/* The home page keeps to three sizes — the name, body text, small grey labels — and one colour for anything
+   you can act on: Apple's link blue, the same blue the articles use */
+body.home {
+  --fs-body: 17px;
+  --fs-small: 13px;
+  --accent: var(--link);
+  --accent-bg: #0071e3;
+}
+
+/* links within the page glide there, and land clear of the top bar */
+html:has(body.home) { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html:has(body.home) { scroll-behavior: auto; } }
+
+.sec { position: relative; background: var(--bg); scroll-margin-top: var(--topbar); }
+.sec-hero { min-height: 100vh; min-height: 100svh; overflow: hidden; color: var(--text); }
+.sec-inner { padding-top: clamp(72px, 11vh, 120px); padding-bottom: clamp(72px, 11vh, 120px); }
+.sec-now .sec-inner { padding-top: clamp(96px, 14vh, 152px); }
+/* wide screens: the section's name sits in a narrow column on the left, its content on the right */
+@media (min-width: 900px) {
+  .sec-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr); column-gap: clamp(40px, 6vw, 96px); align-items: start; }
+  /* the name lines up with the first line of text across the way (rows and rules start 22px down) */
+  .sec-inner > .sec-head { grid-column: 1; grid-row: span 3; margin-bottom: 0; padding-top: 22px; }
+  .sec-about .about-grid { padding-top: 22px; }
+  .sec-inner > :not(.sec-head) { grid-column: 2; }
+  .sec-inner > .site-foot { grid-column: 1 / -1; }
+}
+
+/* links and the one button */
+.text-link { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-body); color: var(--accent); }
+.text-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: .22em; }
+/* Apple's chevron after a link, nudged along on hover */
+.text-link .chev { margin-left: -2px; transition: transform .3s var(--ease-out); }
+.text-link:hover .chev { transform: translateX(2px); }
+.home .btn { height: 46px; padding: 0 24px; font-size: var(--fs-body); font-weight: 400; letter-spacing: 0; }
+.home .btn-primary { background: var(--accent-bg); color: #fff; }
+.home .btn-primary:hover { opacity: 1; background: #0077ed; }
+
+/* the one choreographed motion: the hero's words come in as the light rises, once per visit */
+.js .sec-hero .reveal { opacity: 0; transform: translateY(8px); transition: opacity .6s var(--ease-out), transform .7s var(--ease-out); transition-delay: calc(var(--i, 0) * 60ms + 120ms); }
+.js .sec-hero.is-active .reveal { opacity: 1; transform: none; }
+.js .sec-hero.is-instant .reveal { transition: none; }
+
+/* ---------- section heading ---------- */
+/* small and quiet: the hero's name is the only large type on the page */
+.sec-head { max-width: 760px; margin-bottom: 40px; }
+.sec-title { font: 600 var(--fs-body)/1.5 var(--font-sans); }
+.sec-title:focus { outline: none; }
+.sec-lead { margin-top: 4px; max-width: 22em; font-size: var(--fs-body); line-height: 1.6; color: var(--text-3); text-wrap: pretty; } /* pretty: no lone character on the last line */
+
+/* ==========================================================================
+   Hero
+   ========================================================================== */
+/* the planet, its lit edge and the rising sun or moon are drawn into one canvas by home.js */
+.hero-scene { position: absolute; inset: 0; background: var(--bg); }
+.hero-canvas { display: block; width: 100%; height: 100%; }
+
+.hero-body { position: relative; z-index: 2; min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; justify-content: center; padding-top: var(--topbar); padding-bottom: clamp(96px, 14vh, 160px); }
+/* portrait: the copy sits in the upper half, the planet and the rising light keep the lower half */
+@media (max-aspect-ratio: 4/5) { .hero-body { justify-content: flex-start; padding-top: calc(var(--topbar) + 7vh); } }
+.hero-role { font-size: var(--fs-body); font-weight: 500; color: var(--text-2); }
+.hero-name {
+  margin-top: 14px; max-width: 9ch;
+  font: 600 clamp(52px, 8vw, 124px)/.96 var(--font-display); letter-spacing: -.04em;
+  /* a quiet sheen that follows the pointer */
+  background: radial-gradient(560px circle at var(--gx, 20%) var(--gy, 20%), var(--text) 0%, color-mix(in srgb, var(--text) 74%, transparent) 70%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
+}
+.hero-intro { margin-top: 28px; max-width: 26em; font-size: var(--fs-body); line-height: 1.7; color: var(--text-2); }
+.hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 40px; }
+
+/* the visitor's city, time, temperature and next sunrise or sunset, on a pill of clear glass over the planet */
+.hud { display: none; }
+.js .hud { display: block; position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding-bottom: clamp(20px, 4vh, 40px); pointer-events: none; }
+.hud-pill { display: inline-flex; gap: 0 1.2em; max-width: 100%; padding: 8px 16px; border-radius: 999px; font-size: var(--fs-small); font-weight: 500; white-space: nowrap; overflow: hidden; }
+.hud-pill .num { font-variant-numeric: tabular-nums; }
+.hud-pill > span:empty { display: none; }
+
+/* cards share these: a label on top, the content, a foot pinned to the bottom */
+.w-label { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-small); font-weight: 500; color: var(--text-3); }
+.w-label span:empty { display: none; }
+.w-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 12px; font-size: var(--fs-small); color: var(--text-3); }
+.w-foot span:empty { display: none; }
+
+/* ==========================================================================
+   Now — small cards like widgets, each with its own shape and content
+   ========================================================================== */
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.w { --r: var(--r-lg); --pad: 20px; position: relative; display: flex; flex-direction: column; min-height: 188px; overflow: hidden; color: var(--text); }
+.w { grid-column: span 2; }
+/* cards that are links lift a little under the pointer */
+a.w { transition: transform .35s var(--ease-out); }
+a.w:hover { transform: translateY(-2px); }
+.w-big { margin-top: 8px; font: 600 44px/1.05 var(--font-display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.w-big small { margin-left: 2px; font: 500 var(--fs-body) var(--font-sans); letter-spacing: 0; color: var(--text-2); }
+.w-text { margin-top: 6px; font-size: 15px; line-height: 1.5; color: var(--text-2); }
+.w-title { margin-top: 10px; font-size: var(--fs-body); font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.w-sub { margin-top: 4px; font-size: 15px; line-height: 1.55; color: var(--text-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+
+/* local time: the clock, and the sun's path from sunrise to sunset with where it stands now */
+.w-time { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; column-gap: 20px; }
+.w-time .w-label, .w-time .w-foot { grid-column: 1 / -1; }
+.w-time .w-big { align-self: end; }
+.w-arc { align-self: end; justify-self: end; width: 100%; max-width: 230px; height: auto; overflow: visible; }
+.w-arc-track { fill: none; stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: .8 2.2; }
+.w-arc-done { fill: none; stroke: #ff9f0a; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 0 100; transition: stroke-dasharray 1.2s var(--ease-out); }
+.w-arc-ground { stroke: var(--line); stroke-width: 1; }
+.w-arc-sun { fill: #ff9f0a; filter: drop-shadow(0 0 6px rgba(255, 159, 10, .65)); }
+.w-time.is-night .w-arc-done { stroke: var(--text-3); }
+.w-time.is-night .w-arc-sun { display: none; } /* the sun is down: not on the path */
+
+/* weather: a faint sky in the corner, like the Weather widget */
+.w-weather { background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, #64d2ff 22%, transparent), transparent 62%), var(--card-bg); }
+
+/* writing: how much, and how long the last few articles were */
+.w-stats .w-foot { align-items: flex-end; }
+.w-bars { display: flex; align-items: flex-end; gap: 5px; height: 44px; }
+.w-bars li { flex: none; width: 8px; height: var(--h); min-height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.w-bars li:last-child { background: var(--text); }
+
+/* ==========================================================================
+   Blog — a grouped list: picture, title and summary, date
+   ========================================================================== */
+.group { --r: var(--r-lg); --pad: 8px; }
+.group li { position: relative; }
+.group li + li::before { content: ""; position: absolute; top: 0; left: calc(12px + 56px + 16px); right: 12px; height: 1px; background: var(--line); }
+.row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 12px; border-radius: calc(var(--r) - var(--pad)); transition: background-color .2s, transform .3s var(--ease-spring); }
+.row:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.row-thumb { position: relative; display: grid; place-items: center; width: 56px; height: 56px; overflow: hidden; border-radius: var(--r-sm); background: var(--surface); }
+.row-thumb::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); }
+.row-thumb picture, .row-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.row-thumb.is-glyph { background: linear-gradient(135deg, var(--t1), var(--t2)); color: #fff; font: 600 22px/1 var(--font-display); }
+.row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.row-title { font-size: var(--fs-body); font-weight: 600; line-height: 1.45; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .2s; }
+.row:hover .row-title { color: var(--accent); }
+.row-sub { font-size: 15px; line-height: 1.5; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-date { align-self: start; padding-top: 3px; font-size: var(--fs-small); color: var(--text-3); }
+.post-empty { padding: 22px 0; font-size: var(--fs-body); color: var(--text-3); }
+.more-link { margin-top: 28px; }
+
+/* ==========================================================================
+   Work — a bento: one big tile, then halves and full widths. Screenshots sit inset in their cards with
+   concentric corners; the name floats on glass over the picture
+   ========================================================================== */
+.work-bento { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.tile { --r: var(--r-lg); --pad: 8px; position: relative; display: flex; flex-direction: column; }
+.tile.is-feature, .tile.is-wide { grid-column: 1 / -1; }
+.tile-media { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: var(--surface); }
+.tile-media::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); pointer-events: none; }
+.tile-media picture, .tile-media img, .tile-media canvas { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+.tile-media picture { position: relative; z-index: 1; }
+.tile-name { position: absolute; left: 12px; bottom: 12px; z-index: 1; } /* looks: base.css, glass on a picture */
+.tile-body { display: flex; flex-direction: column; flex: 1; padding: 14px 12px 10px; }
+.tile .project-desc { margin-top: 0; font-size: 15px; }
+.tile.is-text .tile-body { padding: 16px; }
+.tile.is-text .project-desc { margin-top: 6px; }
+/* the big one: the scene (or picture) fills it and the words sit on glass over its lower left */
+.tile.is-feature .tile-media { aspect-ratio: 21 / 9; }
+.tile-over { position: absolute; left: calc(var(--pad) + 16px); bottom: calc(var(--pad) + 16px); z-index: 1; max-width: min(380px, calc(100% - 2 * var(--pad) - 32px)); padding: 16px 18px; border-radius: max(var(--r-sm), calc(var(--r) - var(--pad) - 16px)); }
+.tile-over .project-desc { margin-top: 4px; font-size: 15px; color: var(--text-2); }
+.tile-over .project-foot { padding-top: 10px; }
+/* full width: words on the left, picture on the right */
+.tile.is-wide:not(.is-text) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 8px; }
+.tile.is-wide .tile-media { order: 2; }
+.tile.is-wide .tile-body { order: 1; justify-content: center; padding: 16px 16px 16px 14px; }
+.project-name { font: 600 var(--fs-body)/1.5 var(--font-sans); }
+.project-desc { margin-top: 6px; font-size: var(--fs-body); line-height: 1.6; color: var(--text-2); }
+.project-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 14px; font-size: var(--fs-small); color: var(--text-3); }
+.project-stack { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.project-links { display: flex; gap: 18px; color: var(--accent); }
+.project-links a { display: inline-flex; align-items: center; gap: 4px; }
+.project-links a:hover { text-decoration: underline; text-underline-offset: .22em; }
+
+/* ==========================================================================
+   About
+   ========================================================================== */
+.about-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 48px; max-width: 640px; }
+.statement { font-size: var(--fs-body); line-height: 1.8; }
+.facts { border-top: 1px solid var(--line); }
+.facts div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); align-items: baseline; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.facts dt { font-size: var(--fs-small); color: var(--text-3); }
+.facts dd { font-size: var(--fs-body); }
+.social { display: flex; flex-wrap: wrap; gap: 12px 28px; margin-top: 28px; }
+.sec-about .site-foot { margin-top: clamp(96px, 14vh, 160px); }
+
+/* ==========================================================================
+   Side navigation — a ruler while collapsed, a glass index when open
+   ========================================================================== */
+.sidenav { display: none; }
+.js .sidenav { display: block; position: fixed; top: 50%; z-index: 45; transform: translateY(-50%); --step: 30px; touch-action: none; }
+.sidenav[data-side="left"] { left: 0; }
+.sidenav[data-side="right"] { right: 0; }
+
+.ruler {
+  position: relative; display: block; width: 64px; height: calc((var(--n) - 1) * var(--step) + 40px);
+  padding: 0; border: 0; background: none; cursor: pointer; color: var(--text);
+  transition: opacity .3s, transform .45s var(--ease-out);
+}
+.ruler-scale, .tick, .ruler-pointer { position: absolute; pointer-events: none; }
+/* fine graduations every 7.5px; the page marks sit on top */
+.ruler-scale { top: 20px; height: calc((var(--n) - 1) * var(--step) + 1px); width: 5px; background: repeating-linear-gradient(to bottom, currentColor 0 1px, transparent 1px calc(var(--step) / 4)); opacity: .28; }
+.tick { top: calc(20px + var(--k) * var(--step)); width: 12px; height: 1.5px; margin-top: -.25px; border-radius: 1px; background: currentColor; opacity: .55; transition: width .45s var(--ease-out), opacity .3s, height .3s; }
+.tick.is-active { width: 26px; height: 2px; margin-top: -.5px; opacity: 1; }
+.ruler-pointer { top: 20px; width: 0; height: 0; margin-top: -4.5px; border-top: 5px solid transparent; border-bottom: 5px solid transparent; transform: translateY(calc(var(--index) * var(--step))); transition: transform .65s var(--ease-spring); }
+[data-side="left"] .ruler-scale, [data-side="left"] .tick { left: 26px; }
+[data-side="right"] .ruler-scale, [data-side="right"] .tick { right: 26px; }
+[data-side="left"] .ruler-pointer { left: 14px; border-left: 6px solid currentColor; }
+[data-side="right"] .ruler-pointer { right: 14px; border-right: 6px solid currentColor; }
+.ruler:hover .tick { opacity: .8; }
+.ruler:hover .tick.is-active { opacity: 1; }
+/* an article's outline: the title's tick is the longest, h3 ticks the shortest; the pointer follows the reading position closely */
+.tick.lv1:not(.is-active) { width: 17px; opacity: .7; }
+.tick.lv3:not(.is-active) { width: 8px; opacity: .5; }
+.sidenav[data-kind="toc"] .ruler-pointer { transition: transform .18s linear; }
+
+/* open, the outline is a list of its own that scrolls under the wheel or the finger, not the page */
+/* Open, an article's outline reads like a menu: a header with how much has been read, then the sections, each with
+   its number on a small tile; the one being read is filled in. Sub-sections hang under their section's words along
+   a thin guide line. */
+.sidenav[data-kind="toc"] { --pad-l: 12px; --pad-r: 12px; }
+.sidenav[data-kind="toc"] .panel { width: 320px; }
+.sidenav[data-kind="toc"] .panel-pointer { display: none; }
+.sidenav[data-kind="toc"] .dial-window {
+  --ft: 0px; --fb: 0px;
+  height: auto; max-height: min(60vh, 520px); padding: 2px 0;
+  overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 var(--ft), #000 calc(100% - var(--fb)), transparent);
+  mask-image: linear-gradient(transparent, #000 var(--ft), #000 calc(100% - var(--fb)), transparent);
+}
+.sidenav[data-kind="toc"] .dial-window::-webkit-scrollbar { display: none; }
+.sidenav[data-kind="toc"] .dial-window.can-up { --ft: 36px; }
+.sidenav[data-kind="toc"] .dial-window.can-down { --fb: 36px; }
+.sidenav[data-kind="toc"] .dial { position: static; transform: none; transition: none; }
+.sidenav[data-kind="toc"] .dial-item {
+  position: relative; height: auto; align-items: center; gap: 10px; padding: 8px var(--pad-r) 8px var(--pad-l); border-radius: calc(var(--r) - var(--pad));
+  opacity: 1; transform: none; color: var(--text-2); transition: color .2s, background-color .2s;
+}
+.sidenav[data-kind="toc"] .dial-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
+.sidenav[data-kind="toc"] .dial-item[aria-current="true"] { color: var(--text); background: color-mix(in srgb, var(--text) 9%, transparent); }
+/* long headings wrap to a second line instead of being cut off */
+.sidenav[data-kind="toc"] .dial-zh { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 14px; font-weight: 500; line-height: 1.4; letter-spacing: 0; }
+/* the section number on a tile, like the icons in a menu; the current one in the accent colour */
+.sidenav[data-kind="toc"] .dial-num {
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 7px;
+  background: color-mix(in srgb, var(--text) 8%, transparent); font: 600 11px/1 var(--font-sans); color: var(--text-2);
+  transition: background-color .25s, color .25s;
+}
+.sidenav[data-kind="toc"] .dial-item:is([aria-current="true"], .is-section) .dial-num { background: var(--link); color: #fff; }
+.sidenav[data-kind="toc"] .dial-item.is-section { color: var(--text); }
+/* the header: "目录" and how much has been read, then a hairline that fills as you read */
+.sidenav[data-kind="toc"] .panel-head { display: flex; align-items: baseline; justify-content: space-between; padding: 10px 12px 6px; }
+.read-pct { font-size: 12px; color: var(--text-3); }
+.read-bar { height: 3px; margin: 2px 12px 10px; border-radius: 2px; background: color-mix(in srgb, var(--text) 10%, transparent); overflow: hidden; }
+.read-bar span { display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--link); transform: scaleX(var(--read, 0)); transform-origin: left; transition: transform .2s linear; }
+/* level 1, the article's title: the heading of the list, up to two lines, set off by a hairline */
+.sidenav[data-kind="toc"] .dial > li:first-child { margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.sidenav[data-kind="toc"] .dial-item.lv1 { padding-top: 10px; padding-bottom: 10px; }
+.sidenav[data-kind="toc"] .dial-item.lv1 .dial-zh { font-size: 15px; font-weight: 600; line-height: 1.35; }
+/* level 3: smaller and lighter, its words in line with its section's words, a guide line under the tiles */
+.sidenav[data-kind="toc"] .dial-item.lv3 { padding-top: 5px; padding-bottom: 5px; padding-left: calc(var(--pad-l) + 34px); color: var(--text-3); }
+.sidenav[data-kind="toc"] .dial-item.lv3 .dial-zh { font-size: 13px; font-weight: 400; }
+.sidenav[data-kind="toc"] .dial-item.lv3:is([aria-current="true"], :hover) { color: var(--text); }
+.sidenav[data-kind="toc"] .dial-item.lv3::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--pad-l) + 11.5px); width: 1px; background: var(--line-strong); opacity: .5; }
+.sidenav[data-kind="toc"] .dial-item.lv3[aria-current="true"]::after { width: 1.5px; background: var(--link); opacity: 1; }
+
+/* the open index: regular Liquid Glass (base.css, Materials); its entries round concentrically inside it */
+.panel {
+  --r: 26px; --pad: 10px;
+  position: absolute; top: 50%; width: 252px; padding: var(--pad);
+  border-radius: var(--r); background: var(--glass-tint);
+  -webkit-backdrop-filter: var(--glass-filter); backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-rim), var(--glass-drop);
+  opacity: 0; visibility: hidden;
+  transition: opacity .3s ease, transform .5s var(--ease-out), visibility .3s;
+}
+[data-side="left"] .panel { left: 12px; transform: translate(-14px, -50%) scale(.98); transform-origin: left center; }
+[data-side="right"] .panel { right: 12px; transform: translate(14px, -50%) scale(.98); transform-origin: right center; }
+.sidenav[data-open="true"] .panel { opacity: 1; visibility: visible; transform: translate(0, -50%); }
+.sidenav[data-open="true"] .ruler { opacity: 0; }
+
+.panel-head { padding: 12px 16px 4px; }
+.panel-head .eyebrow { font-size: 11px; color: var(--text-3); }
+.dial-window { position: relative; height: 276px; overflow: hidden; -webkit-mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent); mask-image: linear-gradient(transparent, #000 22%, #000 78%, transparent); }
+.dial { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(calc(var(--index) * -54px - 27px)); transition: transform .65s var(--ease-out); }
+.dial-item {
+  display: flex; align-items: center; gap: 12px; height: 54px; padding: 0 18px 0 34px; border-radius: calc(var(--r) - var(--pad));
+  color: var(--text-3); transition: color .3s, opacity .4s, transform .5s var(--ease-out), background-color .2s;
+}
+[data-side="right"] .dial-item { padding: 0 34px 0 18px; }
+.dial-item:hover { color: var(--text); background: var(--line); }
+.dial-item[aria-current="true"] { color: var(--text); }
+.dial-item[data-dist="1"] { opacity: .7; transform: scale(.95); }
+.dial-item[data-dist="2"] { opacity: .42; transform: scale(.9); }
+.dial-item[data-dist="3"], .dial-item[data-dist="4"] { opacity: .22; transform: scale(.86); }
+.dial-num { width: 22px; font: 500 12px var(--font-mono); font-variant-numeric: tabular-nums; }
+.dial-zh { font-size: 19px; font-weight: 600; letter-spacing: .02em; }
+.dial-en { margin-left: auto; font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; }
+.panel-pointer { position: absolute; top: calc(50% + 2px); width: 0; height: 0; margin-top: -5px; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+[data-side="left"] .panel-pointer { left: 14px; border-left: 6px solid var(--text); }
+[data-side="right"] .panel-pointer { right: 14px; border-right: 6px solid var(--text); }
+
+.panel-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 12px 6px 4px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-3); }
+/* the small two-way switches (here and all over the back office). The blog's tags have a sliding thumb of their own: blog.css */
+.seg:not([data-seg]) { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--line); }
+.seg:not([data-seg]) button { min-width: 46px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); font-size: 13px; cursor: pointer; transition: background-color .25s, color .25s, box-shadow .25s; }
+.seg:not([data-seg]) button[aria-pressed="true"] { background: var(--bg); color: var(--text); box-shadow: 0 1px 4px rgba(0, 0, 0, .18); }
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+/* the right-hand column narrows: the small cards go two to a row */
+@media (max-width: 1180px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .w { grid-column: span 1; }
+}
+@media (max-width: 720px) {
+  .bento { gap: 12px; }
+  .w { --pad: 16px; min-height: 168px; grid-column: span 2; }
+  .w-big { font-size: 38px; }
+  .w-time { grid-template-columns: minmax(0, 1fr); }
+  .w-arc { justify-self: stretch; max-width: none; margin-top: 8px; }
+  /* the list: smaller pictures, the date drops out */
+  .row { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 10px; }
+  .row-thumb { width: 48px; height: 48px; }
+  .row-date { display: none; }
+  .group li + li::before { left: calc(10px + 48px + 14px); right: 10px; }
+  /* the work: one column; the big tile's words go under its picture */
+  .work-bento { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .tile.is-feature .tile-media { aspect-ratio: 16 / 10; }
+  .tile-over { position: static; max-width: none; margin-top: 8px; padding: 14px 12px 10px; background: none; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .tile.is-wide:not(.is-text) { display: flex; }
+  .tile.is-wide .tile-media { order: 0; }
+  .tile.is-wide .tile-body { padding: 14px 12px 10px; }
+  /* on a phone the article outline shrinks into the 24px margin so it never covers the text */
+  .sidenav[data-kind="toc"] .ruler { width: 24px; }
+  .sidenav[data-kind="toc"][data-side="left"] .ruler-scale, .sidenav[data-kind="toc"][data-side="left"] .tick { left: 8px; }
+  .sidenav[data-kind="toc"][data-side="right"] .ruler-scale, .sidenav[data-kind="toc"][data-side="right"] .tick { right: 8px; }
+  .sidenav[data-kind="toc"][data-side="left"] .ruler-pointer { left: 1px; }
+  .sidenav[data-kind="toc"][data-side="right"] .ruler-pointer { right: 1px; }
+  .sidenav[data-kind="toc"] .ruler-scale { width: 3px; }
+  .sidenav[data-kind="toc"] .tick { width: 8px; }
+  .sidenav[data-kind="toc"] .tick.lv1:not(.is-active) { width: 10px; }
+  .sidenav[data-kind="toc"] .tick.lv3:not(.is-active) { width: 5px; }
+  .sidenav[data-kind="toc"] .tick.is-active { width: 12px; }
+  .sidenav[data-kind="toc"] .panel { width: min(320px, calc(100vw - 32px)); }
+  .sidenav[data-kind="toc"] .dial-window { max-height: min(56vh, 460px); }
+  .hud-pill { gap: 0 1em; padding: 7px 14px; }
+  .js .sidenav { --step: 26px; }
+  .ruler { width: 48px; }
+  [data-side="left"] .ruler-scale, [data-side="left"] .tick { left: 18px; }
+  [data-side="right"] .ruler-scale, [data-side="right"] .tick { right: 18px; }
+  [data-side="left"] .ruler-pointer { left: 7px; }
+  [data-side="right"] .ruler-pointer { right: 7px; }
+}
+/* short landscape screens (a phone turned sideways, a small laptop window): drop the meta row, scale the name by height */
+@media (max-height: 560px) and (min-aspect-ratio: 4/5) {
+  :root { --topbar: 60px; }
+  .hero-body { padding-bottom: 24px; }
+  .hud { display: none !important; }
+  .hero-name { margin-top: 12px; font-size: min(clamp(56px, 9.4vw, 148px), 17vh); }
+  .hero-intro { margin-top: 14px; }
+  .hero-actions { margin-top: 22px; }
+}
