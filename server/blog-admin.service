@@ -1,0 +1,57 @@
+# 后台服务（登录后才能用：写文章、管评论、改主页、发布）：放到 /etc/systemd/system/blog-admin.service，然后
+#   sudo systemctl daemon-reload && sudo systemctl enable --now blog-admin
+# 查看日志：journalctl -u blog-admin -f
+#
+# 它以 blog 用户运行（和 git push 时一样），只能写 /srv/blog。发布时它启动 Node.js 构建网站，上传图片时用 Node.js 处理图片，
+# 这些也算在下面的内存上限里：实测平时 70–200 MB，发布或上传一张 4800 万像素的照片时最多 600 MB 左右，1G 留了余量。
+
+[Unit]
+Description=Blog admin
+After=network.target postgresql.service
+
+[Service]
+Environment=LANG=C.UTF-8
+User=blog
+Group=blog
+Environment=BLOG_BASE=/srv/blog
+Environment=HOME=/srv/blog
+Environment=NPM_CONFIG_CACHE=/srv/blog/.npm
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/java -Xms32m -Xmx128m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /opt/blog/blog-server.jar admin --config /etc/blog/admin.properties
+Restart=on-failure
+RestartSec=3
+
+MemoryMax=1G
+TasksMax=512
+LimitNOFILE=4096
+
+# 沙箱：除了 /srv/blog 哪里都写不了；看不到 /home（包括你自己的家目录和 SSH 密钥）；拿不到任何特权
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ReadWritePaths=/srv/blog
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RemoveIPC=yes
+UMask=0022
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# 万一发布或上传图片时出现 Operation not permitted，先把上面两行 SystemCallFilter / SystemCallErrorNumber 注释掉再试
+
+[Install]
+WantedBy=multi-user.target

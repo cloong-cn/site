@@ -1,0 +1,51 @@
+# 评论服务（所有访客都能访问的那部分）：放到 /etc/systemd/system/blog-comments.service，然后
+#   sudo systemctl daemon-reload && sudo systemctl enable --now blog-comments
+# 查看日志：journalctl -u blog-comments -f
+
+[Unit]
+Description=Blog comments (public)
+After=network.target postgresql.service
+
+[Service]
+Environment=LANG=C.UTF-8
+User=blog-comments
+Group=blog-comments
+ExecStart=/usr/bin/java -Xms32m -Xmx128m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError -Dfile.encoding=UTF-8 -jar /opt/blog/blog-server.jar comments --config /etc/blog/comments.properties
+Restart=on-failure
+RestartSec=3
+
+# 资源上限：就算出了问题，也只占这么多
+MemoryMax=300M
+TasksMax=256
+LimitNOFILE=4096
+
+# 沙箱：这个进程只能读自己的程序、配置和网站文件，哪里都写不了，也拿不到任何特权
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RemoveIPC=yes
+UMask=0077
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# 万一服务启动不了、日志里出现 Operation not permitted，先把上面两行 SystemCallFilter / SystemCallErrorNumber 注释掉再试
+# Java 的即时编译需要可写可执行的内存，所以这里不能开 MemoryDenyWriteExecute
+
+[Install]
+WantedBy=multi-user.target
