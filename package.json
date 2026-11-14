@@ -6,6 +6,7 @@
   "description": "Personal homepage and blog — static, no framework",
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:admin": "node scripts/dev.mjs --admin-demo",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/dev.mjs --serve",
     "video": "node scripts/video.mjs",

@@ -4,12 +4,15 @@
 // /api/comments goes to the comment service in server/ when it runs locally (COMMENTS_API, default http://127.0.0.1:8787).
 // The admin page is at ADMIN_PATH (default /_admin; set it to admin.path of a local admin service), its API under
 // ADMIN_PATH/api/ goes to ADMIN_API (default http://127.0.0.1:8788). /admin/, /wp-login.php … show the decoy page.
+// `npm run dev:admin` answers the admin API itself with sample data instead (scripts/admin-mock.mjs): the admin page
+// works without Java or PostgreSQL, changes stay in memory.
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { watch, existsSync } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createAdminMock } from './admin-mock.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
@@ -20,6 +23,9 @@ const ADMIN_API = new URL(process.env.ADMIN_API || 'http://127.0.0.1:8788');
 const ADMIN_PATH = (process.env.ADMIN_PATH || '/_admin').replace(/\/+$/, '');
 const TRAP = /^\/(admin|administrator|wp-admin|wp-login\.php|login|signin|user\/login|manager|manage|backend|dashboard|cms|phpmyadmin|pma|admin\.php|adminer\.php)(\/.*)?$/i;
 const SERVE_ONLY = process.argv.includes('--serve');
+const adminMock = process.argv.includes('--admin-demo') ? await createAdminMock({ root }) : null;
+/* on the admin page while it runs on sample data: a note, so it is never taken for the real thing */
+const DEMO_NOTE = '<div style="position:fixed;left:16px;bottom:16px;z-index:300;padding:8px 14px;border-radius:999px;background:#ff9f0a;color:#000;font:600 12px/1.4 system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25);pointer-events:none">本地预览 · 示例数据，改动只在内存里，重启就没了</div>';
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.xml': 'application/xml; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.json': 'application/json',
@@ -52,7 +58,7 @@ if (!SERVE_ONLY) {
   await rebuild();
   let t = 0;
   const onChange = () => { clearTimeout(t); t = setTimeout(rebuild, 150); };
-  for (const target of ['src', 'content', 'site.config.mjs']) {
+  for (const target of ['src', 'content', 'scripts', 'site.config.mjs']) {
     try { watch(path.join(root, target), { recursive: true }, onChange); } catch { watch(path.join(root, target), onChange); }
   }
 }
@@ -71,14 +77,22 @@ function proxy(req, res, target, path, extra = {}, fallback = null) {
   });
   req.pipe(up);
 }
-const page = async (res, file) => {
-  try { res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache' }); res.end(await readFile(path.join(dist, file))); } catch { res.writeHead(404); res.end(); }
+const page = async (res, file, extra = '') => {
+  try {
+    const html = await readFile(path.join(dist, file));
+    res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache' });
+    res.end(extra ? html.toString().replace('</body>', extra + '</body>') : html);
+  } catch { res.writeHead(404); res.end(); }
 };
 
 http.createServer(async (req, res) => {
   const bare = req.url.replace(/[?#].*$/, '');
-  if (bare.startsWith(ADMIN_PATH + '/api/')) { proxy(req, res, ADMIN_API, req.url); return; }
-  if (bare === ADMIN_PATH || bare === ADMIN_PATH + '/') { await page(res, '_admin/index.html'); return; }
+  if (bare.startsWith(ADMIN_PATH + '/api/')) {
+    if (adminMock) { const u = new URL(req.url, 'http://localhost'); await adminMock(req, res, u.pathname.slice(ADMIN_PATH.length + 5), u.search.slice(1)); return; }
+    proxy(req, res, ADMIN_API, req.url);
+    return;
+  }
+  if (bare === ADMIN_PATH || bare === ADMIN_PATH + '/') { await page(res, '_admin/index.html', adminMock ? DEMO_NOTE : ''); return; }
   if (req.url.startsWith('/api/')) { proxy(req, res, COMMENTS_API, req.url); return; }
   if (TRAP.test(bare)) { proxy(req, res, COMMENTS_API, '/trap', { 'x-trap-path': req.url }, () => page(res, '_trap/index.html')); return; }
   if (req.url === '/__reload') {
@@ -129,4 +143,4 @@ http.createServer(async (req, res) => {
     res.writeHead(500);
     res.end('build output missing — run npm run build');
   }
-}).listen(PORT, HOST, () => console.log(`\n  ${SERVE_ONLY ? 'serving dist/' : 'dev server'} → http://localhost:${PORT}${HOST === '127.0.0.1' ? '' : `  (also on this computer's network address, port ${PORT})`}\n`));
+}).listen(PORT, HOST, () => console.log(`\n  ${SERVE_ONLY ? 'serving dist/' : 'dev server'} → http://localhost:${PORT}${HOST === '127.0.0.1' ? '' : `  (also on this computer's network address, port ${PORT})`}${adminMock ? `\n  admin, on sample data → http://localhost:${PORT}${ADMIN_PATH}/` : ''}\n`));

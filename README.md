@@ -655,6 +655,17 @@ LANG=C.UTF-8 java -jar build/blog-server.jar comments --config comments.properti
 
 后台要的东西多一些（一份 `/srv/blog` 那样的目录、构建脚本），直接在服务器上用最省事。
 
+只想看看后台、或者改后台的界面，不用装 Java 和数据库：
+
+```bash
+npm run dev:admin    # 打开 http://localhost:4321/_admin/
+```
+
+这时后台的接口由 `scripts/admin-mock.mjs` 用示例数据回答：文章来自 `content/blog/`，主页来自 `content/site.json`，
+图集是示例图集，评论、发布记录、备份和假后台记录是编出来的。不用登录（退出后随便填密码和验证码也能进）。
+保存、发布、审核评论都能点，但改动只在内存里：不会写回你的文件，也不会真的构建网站，重启就恢复原样。
+导入、导出和下载备份要真正的后台服务。页面左下角有一个橙色的「本地预览」标记，免得和线上后台搞混。
+
 ## 加载速度
 
 首页的星球、地平线的光和日月都是浏览器当场用代码画的（WebGL），没有一张图片要下载。
