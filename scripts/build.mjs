@@ -552,6 +552,19 @@ async function buildAssets() {
   /* the admin editor's preview turns Markdown into HTML in the browser with the same library the build uses */
   await emit('admin-marked.js', await readFile(path.join(root, 'node_modules/marked/lib/marked.umd.js')));
   await emit('admin-katex.js', await readFile(path.join(root, 'node_modules/katex/dist/katex.min.js'))); /* and the formulas */
+  /* and colours code as the articles do: highlight.js (its core, and the languages scripts/highlight.mjs has names for)
+     with this site's own second pass, glued into one plain script. Each part keeps its own scope; the admin page loads
+     it only when the preview first shows a code block */
+  const hl = path.join(root, 'node_modules/highlight.js');
+  const HL_LANGS = ['java', 'kotlin', 'groovy', 'gradle', 'scala', 'javascript', 'typescript', 'xml', 'css', 'scss', 'less', 'json', 'yaml', 'ini', 'properties', 'sql', 'bash', 'shell', 'powershell', 'python', 'go', 'rust', 'c', 'cpp', 'csharp', 'php', 'ruby', 'swift', 'dart', 'dockerfile', 'nginx', 'makefile', 'markdown', 'diff', 'http', 'graphql', 'lua', 'glsl', 'plaintext', 'objectivec'];
+  let hlJs = `(function () {\n'use strict';\nvar hljs = (function () {\nvar module = { exports: {} }, exports = module.exports;\n${await readFile(path.join(hl, 'lib/core.js'), 'utf8')}\nreturn module.exports;\n})();\n`;
+  for (const l of HL_LANGS) {
+    const src = await readFile(path.join(hl, 'es/languages', `${l}.js`), 'utf8');
+    if (!/export \{ \w+ as default \};/.test(src)) throw new Error(`highlight.js: ${l}.js is not shaped as expected`);
+    hlJs += `(function () {\n${src.replace(/export \{ (\w+) as default \};/, `hljs.registerLanguage('${l}', $1);`)}\n})();\n`;
+  }
+  hlJs += `window.SiteHighlight = (function () {\n${(await readFile(path.join(root, 'scripts/highlight.mjs'), 'utf8')).replace(/^import hljs from 'highlight\.js';$/m, '').replace(/^export /gm, '')}\nreturn { codeBlock: codeBlock };\n})();\n})();\n`;
+  await emit('admin-highlight.js', Buffer.from(hlJs));
   await emit('admin.css', Buffer.from(minifyCss(await readFile(path.join(root, 'src/styles/admin.css'), 'utf8'))));
 
   await emit('tz.json', await readFile(path.join(root, 'src/data/tz.json'))); /* time zone -> city, for the telemetry bar */

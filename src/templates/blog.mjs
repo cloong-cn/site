@@ -422,7 +422,7 @@ export function adminPage(cfg, ctx) {
     connect: 'http://127.0.0.1:6806 http://localhost:6806',
     styles: ['admin.css'],
     body: `${pageTop(cfg, ctx, '')}
-<main id="main" class="page-main admin" data-admin data-css="${ctx.asset(ctx.files['site.css'])}">
+<main id="main" class="page-main admin" data-admin data-css="${ctx.asset(ctx.files['site.css'])}" data-katex-src="${ctx.asset(ctx.files['admin-katex.js'])}" data-hl-src="${ctx.asset(ctx.files['admin-highlight.js'])}">
 
 <section class="admin-login" data-view="login" hidden>
 <p class="eyebrow">Admin</p>
@@ -507,10 +507,15 @@ export function adminPage(cfg, ctx) {
 <label class="cm-field ed-date"><input name="date" type="date" placeholder=" "><span class="cm-label">日期</span></label>
 ${field('tags', '标签（用逗号隔开）').replace('cm-field', 'cm-field ed-tags')}
 ${field('description', '摘要（不写就用正文第一段）', 'maxlength="300"').replace('cm-field', 'cm-field ed-desc')}
+<details class="ed-extra" data-ed-extra>
+<summary class="ed-extra-sum"><span class="ed-extra-name">更多设置</span><span class="ed-extra-hint" data-ed-extra-hint></span></summary>
+<div class="ed-extra-grid">
 ${field('cover', '分享图（不写就用文章第一张图）', 'spellcheck="false"').replace('cm-field', 'cm-field ed-cover')}
 ${field('series', '系列（同名的文章连成一组，可不写）', 'maxlength="60"').replace('cm-field', 'cm-field ed-series')}
 <label class="cm-field ed-date ed-updated"><input name="updated" type="date" placeholder=" "><span class="cm-label">更新日期（大改过再填）</span></label>
 <div class="ed-checks"><label class="ed-check"><input type="checkbox" name="comments"> 允许评论</label><label class="ed-check" title="放在博客首页最上面的大卡片里"><input type="checkbox" name="pinned"> 置顶</label></div>
+</div>
+</details>
 </div>
 <p class="ed-note" data-ed-slug-note hidden></p>
 <div class="ed-missing" data-ed-missing hidden>
@@ -567,7 +572,7 @@ ${tool('image', '插入图片', ico('M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1
 <dt>Ctrl/⌘ + Shift + V</dt><dd>粘贴纯文本（不转换格式）</dd>
 <dt>选中文字后粘贴网址</dt><dd>变成链接</dd>
 </dl></details>
-<span class="ed-foot-note">预览是近似效果（没有代码配色），发布后以网站为准</span>
+<span class="ed-foot-note">预览用的是网站的样式和代码配色；图集、视频这些发布后才看得到</span>
 </div>
 </form>
 </div>
@@ -578,6 +583,12 @@ ${tool('image', '插入图片', ico('M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1
 <button type="button" data-filter="pending" aria-pressed="true">待审核</button>
 <button type="button" data-filter="approved" aria-pressed="false">已通过</button>
 <button type="button" data-filter="all" aria-pressed="false">全部</button>
+</div>
+<div class="ad-batch" data-batch hidden>
+<label class="ed-check"><input type="checkbox" data-batch-all> 全选</label>
+<span class="ad-batch-n" data-batch-n></span>
+<button class="btn btn-primary ad-btn" type="button" data-batch-act="approve" disabled>通过所选</button>
+<button class="btn btn-ghost ad-btn ad-del" type="button" data-batch-act="delete" disabled>删除所选</button>
 </div>
 <ol class="admin-list" data-comment-list></ol>
 <p class="admin-empty" data-comment-empty hidden>这里没有评论。</p>
@@ -647,7 +658,8 @@ ${field('slug', '网址（/gallery/ 后面那段）', 'maxlength="80" spellcheck
 <p class="admin-offline" data-view="offline" hidden></p>
 </main>
 <div class="job-toast" data-toast hidden role="status" aria-live="polite"><div class="job-row"><span class="job-dot" data-toast-dot></span><span class="job-text" data-toast-text></span><button class="cm-link" type="button" data-toast-log>记录</button><button class="cm-link" type="button" data-toast-close aria-label="关闭">✕</button></div><pre class="job-log" data-toast-pre hidden></pre></div>`,
-    scripts: ['admin-marked.js', 'admin-katex.js', 'site-admin.js'],
+    /* KaTeX and the code colours come later, when the preview first needs them (admin.js, need) */
+    scripts: ['admin-marked.js', 'site-admin.js'],
   };
 }
 
