@@ -205,10 +205,20 @@
       if (window.Site && Site.stagger) Site.stagger(list.children, 8);
       return;
     }
-    /* a slow connection gets a sign of life; a fast one never sees it */
+    /* a slow connection gets the shape of what is coming (a heading and three comments, in grey); a fast one never
+       sees it */
     var waiting = null, waitT = setTimeout(function () {
-      waiting = make('div', 'cm-loading');
-      for (var i = 0; i < 5; i++) waiting.appendChild(make('i'));
+      waiting = make('div', 'cm-skeleton');
+      waiting.appendChild(make('span', 'sk-title'));
+      for (var i = 0; i < 3; i++) {
+        var it = make('div', 'sk-item'), lines = make('span', 'sk-lines');
+        it.appendChild(make('span', 'sk-av'));
+        lines.appendChild(make('i', 'sk-name'));
+        lines.appendChild(make('i'));
+        if (i !== 1) lines.appendChild(make('i', 'sk-short'));
+        it.appendChild(lines);
+        waiting.appendChild(it);
+      }
       waiting.setAttribute('role', 'status');
       waiting.setAttribute('aria-label', '正在加载评论');
       root.parentNode.insertBefore(waiting, root);
@@ -318,6 +328,14 @@
     });
   }
 
+  /* the send button gives a short shake when the comment was not sent */
+  function shake() {
+    submit.classList.remove('is-error');
+    void submit.offsetWidth; /* so a second refusal shakes again */
+    submit.classList.add('is-error');
+    setTimeout(function () { submit.classList.remove('is-error'); }, 450);
+  }
+
   function send() {
     if (sending) return;
     var data = {
@@ -335,11 +353,20 @@
       : !data.name ? ['请填写昵称', field('name')]
       : data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email) ? ['邮箱格式不对', field('email')]
       : null;
-    if (problem) { say(status, problem[0], 'error'); problem[1].focus(); return; }
+    if (problem) { say(status, problem[0], 'error'); problem[1].focus(); shake(); return; }
 
     sending = true;
     submit.disabled = true;
     say(status, '正在提交…');
+    /* the ring only once it has taken a moment: an answer within 300 ms goes straight to the tick */
+    var busyT = setTimeout(function () { submit.classList.add('is-busy'); }, 300);
+    var settle = function (ok) {
+      clearTimeout(busyT);
+      submit.classList.remove('is-busy');
+      if (!ok) { shake(); return; }
+      submit.classList.add('is-done');
+      setTimeout(function () { submit.classList.remove('is-done'); }, 1800);
+    };
     /* the service ignores forms sent within three seconds of appearing (that is how bots behave), so a restored
        draft sent right away waits a moment */
     new Promise(function (ok) { setTimeout(ok, Math.max(0, 3100 - (Date.now() - shownAt))); }).then(function () {
@@ -361,11 +388,14 @@
         openForm();
         render();
         say(status, '已提交，审核通过后就会显示。', 'ok');
+        settle(true);
       } else {
         say(status, (res.body && typeof res.body.message === 'string' && res.body.message) || '没有提交成功，请稍后再试', 'error');
+        settle(false);
       }
     }, function () {
       say(status, '网络好像断了，没有提交成功', 'error');
+      settle(false);
     }).then(function () {
       sending = false;
       submit.disabled = false;

@@ -92,7 +92,8 @@
     var to = e.activation.entry.url.split('#')[0], links = document.querySelectorAll('a[href]');
     for (var i = 0; i < links.length; i++) {
       if (links[i].href.split('#')[0] !== to) continue;
-      var t = links[i].querySelector('.title, .row-title, .w-title, .t');
+      /* the archive's rows, the home page's list and widget, the cards on the blog's front page */
+      var t = links[i].querySelector('.title, .row-title, .w-title, .t, .feature-title, .pcard-title');
       if (!t) continue;
       var r = t.getBoundingClientRect();
       if (r.bottom < 0 || r.top > innerHeight || !r.width) continue;

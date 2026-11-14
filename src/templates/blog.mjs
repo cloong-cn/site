@@ -99,11 +99,11 @@ function heatmap(posts, ctx, today = new Date()) {
       if (day > end) { cells.push('<span class="hm-c is-future" aria-hidden="true"></span>'); continue; }
       const list = byDay.get(dayKey(day));
       const isToday = +day === +end ? ' is-today' : '';
-      if (!list) { cells.push(`<span class="hm-c${isToday}" aria-hidden="true"></span>`); continue; }
+      if (!list) { cells.push(`<span class="hm-c${isToday}" style="--w:${w}" aria-hidden="true"></span>`); continue; }
       weeksWith[w] = true;
       const n = words(list);
       const label = `${day.getMonth() + 1} 月 ${day.getDate()} 日 · ${list.length} 篇 · 约 ${wan(n)}：${list.map((p) => p.title).join('、')}`;
-      cells.push(`<a class="hm-c l${level(n)}${isToday}" href="${ctx.href(`${BLOG}${list[0].slug}/`)}" title="${esc(label)}" aria-label="${esc(label)}"></a>`);
+      cells.push(`<a class="hm-c l${level(n)}${isToday}" style="--w:${w}" href="${ctx.href(`${BLOG}${list[0].slug}/`)}" title="${esc(label)}" aria-label="${esc(label)}"></a>`);
     }
   }
   /* the longest run of weeks in a row with something new */
@@ -154,9 +154,9 @@ export function blogHomePage(cfg, ctx, posts, tags) {
 <p class="bh-eyebrow">${esc(cfg.brand || cfg.name)} 的博客</p>
 <h1 class="bh-title">${esc(lead || '博客')}</h1>
 <ul class="bh-stats" aria-label="博客概况">
-<li><b class="num">${posts.length}</b> 篇文章</li>
-${words ? `<li>约 <b class="num">${wan(words).replace(/\s*字$/, '')}</b> 字</li>` : ''}
-${tags.length ? `<li><b class="num">${tags.length}</b> 个主题</li>` : ''}
+<li><b class="num" data-count>${posts.length}</b> 篇文章</li>
+${words ? `<li>约 <b class="num" data-count>${wan(words).replace(/\s*字$/, '')}</b> 字</li>` : ''}
+${tags.length ? `<li><b class="num" data-count>${tags.length}</b> 个主题</li>` : ''}
 ${posts[0] ? `<li>最近更新 <b class="num">${ymd(posts[0].date)}</b></li>` : ''}
 </ul>
 <div class="bh-actions">
@@ -390,7 +390,7 @@ function comments(cfg, ctx, post) {
 <div class="cm-replying" data-replying hidden><span>回复 <b data-replying-name></b></span><button type="button" class="cm-link" data-cancel>取消</button></div>
 <div class="cm-compose glass" data-refract>
 <label class="cm-box"><span class="sr-only">评论内容</span><textarea name="content" rows="1" maxlength="4000" placeholder="写下你的想法…" required></textarea></label>
-<button class="cm-send" type="submit" aria-label="发表评论"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<button class="cm-send" type="submit" aria-label="发表评论"><svg class="cm-i cm-i-send" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><svg class="cm-i cm-i-busy" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" pathLength="100" stroke-dasharray="68 100"/></svg><svg class="cm-i cm-i-done" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/></svg></button>
 </div>
 <div class="cm-more"><div class="cm-more-in">
 <div class="cm-row">
