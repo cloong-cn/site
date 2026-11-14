@@ -367,6 +367,7 @@ async function loadPosts() {
       html: embedAlbums(await media.rewrite(enhance(scrubbed(article(body, file), file)), info), slug),
       math: math.used, /* this article has a formula: its page loads KaTeX's stylesheet */
       draft: data.draft === true,
+      pinned: data.pinned === true, /* shown in the big card on the blog's front page */
       comments: data.comments !== false,
       aliases: (Array.isArray(data.aliases) ? data.aliases : []).map(String),
     });
@@ -542,7 +543,7 @@ async function buildAssets() {
   const js = async (name) => stripJsComments(await readFile(path.join(root, 'src/scripts', name), 'utf8'));
   const bundle = async (...names) => Buffer.from((await Promise.all(names.map(js))).join(';\n'));
   /* the words these scripts put on screen get into each page's Chinese font too */
-  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js', 'linkcard.js', 'article.js', 'share.js']]]) {
+  for (const [name, parts] of [['site-home.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'scene.js', 'home.js']], ['site-blog.js', ['theme.js', 'theme-icon.js', 'motion.js', 'nav.js', 'glass.js', 'ruler.js', 'archive.js', 'toc.js', 'media.js', 'comments.js', 'linkcard.js', 'article.js', 'share.js', 'bloghome.js']]]) {
     const buf = await bundle(...parts);
     scriptText[name] = buf.toString();
     await emit(name, buf);

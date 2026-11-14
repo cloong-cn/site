@@ -417,14 +417,15 @@
       extra: extraWith(st.extra),
     };
   }
-  /* 系列 and 更新日期 travel as two lines of the article's other settings ("series: …", "updated: …"), which the
-     server keeps as they are and writes into the file the site is built from */
-  var OWN = /^(series|updated)\s*[:=]/;
+  /* 系列, 更新日期 and 置顶 travel as lines of the article's other settings ("series: …", "updated: …",
+     "pinned: true"), which the server keeps as they are and writes into the file the site is built from */
+  var OWN = /^(series|updated|pinned)\s*[:=]/;
   function extraWith(extra) {
     var out = (extra || []).filter(function (l) { return !OWN.test(l); });
     var s = f('series').value.replace(/[\r\n]+/g, ' ').trim(), u = f('updated').value;
     if (s) out.push('series: ' + s);
     if (u) out.push('updated: ' + u);
+    if (f('pinned').checked) out.push('pinned: true');
     return out;
   }
   function fromExtra(extra, key) {
@@ -445,6 +446,7 @@
     f('comments').checked = p.comments !== false;
     f('series').value = fromExtra(p.extra, 'series');
     f('updated').value = fromExtra(p.extra, 'updated');
+    f('pinned').checked = fromExtra(p.extra, 'pinned') === 'true';
     body.value = p.body || '';
   }
 

@@ -148,6 +148,7 @@ a.ir-title:hover { color: var(--link); }
 .ed-slug input[readonly] { color: var(--text-2); cursor: default; }
 .ed-date .cm-label { transform: translateY(-9px) scale(.76); }
 .ed-date input { padding-right: 10px; }
+.ed-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
 .ed-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; }
 .ed-check input { width: 16px; height: 16px; accent-color: var(--link); }
 .ed-note { margin-top: 10px; font-size: 13px; line-height: 1.6; color: var(--c-note); }

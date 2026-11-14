@@ -1,4 +1,4 @@
-import { esc, md, ymd, longDate, icon, topNav, footer, rulerNav, picture, placeholder, tile, wan } from './util.mjs';
+import { esc, md, ymd, longDate, icon, topNav, footer, rulerNav, picture, placeholder, tile, wan, pick } from './util.mjs';
 
 /* the same floating capsule as the home page (util.mjs) */
 const pageTop = (cfg, ctx, current) => topNav(cfg, ctx, { current });
@@ -21,20 +21,23 @@ function byYear(posts) {
 
 /* ------------------------------------------------------------------ the blog's front page */
 
-/* an article's picture, or a tile in its first tag's colours with the tag's first letter */
+/* An article's picture; without one, a cover set in type: the title large on its first tag's colours, over a faint
+   pattern of its own (a grid, dots, arcs or lines), so the articles on one subject look like a series */
+const PATTERNS = ['grid', 'dots', 'arcs', 'lines'];
 function cover(p, ctx, sizes, eager = false) {
   if (p.thumb) return `${placeholder(p.thumb)}${picture(p.thumb, ctx.asset(''), { sizes, eager })}`;
   const key = p.tags[0] || p.title;
-  return `<span class="cover-art" style="${tile(key)}" aria-hidden="true"><span class="cover-glyph">${esc([...key][0].toUpperCase())}</span><span class="cover-word">${esc(key)}</span></span>`;
+  return `<span class="cover-art" style="${tile(key)}" data-pattern="${pick(PATTERNS, key)}" aria-hidden="true">${p.tags[0] ? `<span class="cover-tag">${esc(p.tags[0])}</span>` : ''}<span class="cover-title">${esc(p.title)}</span></span>`;
 }
 
 const meta = (p) => `<time datetime="${ymd(p.date)}">${longDate(p.date)}</time><span>阅读约 ${p.minutes} 分钟</span>`;
 
+/* the big card: the article marked `pinned: true` (the newest such), else the newest */
 function feature(p, ctx) {
-  return `<a class="card feature" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+  return `<a class="card feature" href="${ctx.href(`${BLOG}${p.slug}/`)}" data-reveal>
 <div class="feature-media inset">${cover(p, ctx, '(max-width: 900px) calc(100vw - 48px), 640px', true)}</div>
 <div class="feature-body">
-<p class="feature-meta"><span class="badge">最新</span>${meta(p)}</p>
+<p class="feature-meta"><span class="badge">${p.pinned ? '置顶' : '最新'}</span>${meta(p)}</p>
 <h2 class="feature-title">${esc(p.title)}</h2>
 ${p.description ? `<p class="feature-desc">${esc(p.description)}</p>` : ''}
 <p class="feature-foot">${p.tags.length ? `<span class="tag-line">${p.tags.map(esc).join(' · ')}</span>` : '<span></span>'}<span class="text-link">阅读全文${icon.chevron}</span></p>
@@ -43,7 +46,7 @@ ${p.description ? `<p class="feature-desc">${esc(p.description)}</p>` : ''}
 }
 
 function postCard(p, ctx, big) {
-  return `<li class="${big ? 'is-big' : ''}"><a class="card pcard" href="${ctx.href(`${BLOG}${p.slug}/`)}">
+  return `<li class="${big ? 'is-big' : ''}" data-reveal><a class="card pcard" href="${ctx.href(`${BLOG}${p.slug}/`)}">
 <div class="pcard-media inset">${cover(p, ctx, big ? '(max-width: 640px) calc(100vw - 48px), (max-width: 900px) 45vw, 560px' : '(max-width: 640px) calc(100vw - 48px), (max-width: 900px) 45vw, 380px')}</div>
 <div class="pcard-body">
 <p class="pcard-meta">${meta(p)}</p>
@@ -54,14 +57,71 @@ ${p.tags.length ? `<p class="tag-line">${p.tags.map(esc).join(' · ')}</p>` : ''
 </a></li>`;
 }
 
-function topics(posts, tags, ctx) {
+/* the subjects as a cloud: the more articles, the larger and stronger the word */
+function cloud(tags, ctx) {
+  const counts = tags.map((t) => t.count), hi = Math.max(...counts), lo = Math.min(...counts);
   return tags.map((t) => {
-    const latest = posts.find((p) => p.tags.includes(t.name));
-    return `<li><a class="card topic" href="${tagHref(ctx, t.name)}" style="${tile(t.name)}">
-<span class="topic-head"><span class="topic-dot" aria-hidden="true"></span><span class="topic-name">${esc(t.name)}</span><span class="topic-count num">${t.count} 篇</span></span>
-${latest ? `<span class="topic-latest">${esc(latest.title)}</span>` : ''}
-</a></li>`;
+    const k = hi === lo ? 0.5 : (t.count - lo) / (hi - lo);
+    return `<li><a class="cloud-tag" href="${tagHref(ctx, t.name)}" style="--k:${k.toFixed(2)};${tile(t.name)}"><span class="cloud-dot" aria-hidden="true"></span>${esc(t.name)}<span class="cloud-n num" aria-label="${t.count} 篇">${t.count}</span></a></li>`;
   }).join('');
+}
+
+/* ------------------------------------------------------------------ the year of writing, one square a day */
+
+const WEEKS = 53;
+const DAY = 864e5;
+const dayKey = (d) => ymd(d);
+function heatmap(posts, ctx, today = new Date()) {
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  /* the grid starts on a Monday, WEEKS weeks back, and ends with this week */
+  const start = new Date(end);
+  start.setDate(end.getDate() - ((end.getDay() + 6) % 7) - (WEEKS - 1) * 7);
+  const byDay = new Map();
+  for (const p of posts) {
+    if (p.date < start || p.date > end) continue;
+    const k = dayKey(p.date);
+    (byDay.get(k) || byDay.set(k, []).get(k)).push(p);
+  }
+  const words = (list) => list.reduce((n, p) => n + (p.words || 0), 0);
+  const most = Math.max(1, ...[...byDay.values()].map(words));
+  const level = (w) => { const r = w / most; return r > 0.66 ? 4 : r > 0.33 ? 3 : r > 0.12 ? 2 : 1; };
+
+  const cells = [], months = [], weeksWith = new Array(WEEKS).fill(false);
+  let lastMonth = -1;
+  for (let w = 0; w < WEEKS; w++) {
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + d);
+      if (d === 0 && day.getMonth() !== lastMonth) {
+        /* a month's name over the first week that starts in it (not over a sliver at the very left) */
+        if (w > 0 || day.getDate() <= 7) months.push(`<span style="grid-column:${w + 1}">${day.getMonth() + 1} 月</span>`);
+        lastMonth = day.getMonth();
+      }
+      if (day > end) { cells.push('<span class="hm-c is-future" aria-hidden="true"></span>'); continue; }
+      const list = byDay.get(dayKey(day));
+      const isToday = +day === +end ? ' is-today' : '';
+      if (!list) { cells.push(`<span class="hm-c${isToday}" aria-hidden="true"></span>`); continue; }
+      weeksWith[w] = true;
+      const n = words(list);
+      const label = `${day.getMonth() + 1} 月 ${day.getDate()} 日 · ${list.length} 篇 · 约 ${wan(n)}：${list.map((p) => p.title).join('、')}`;
+      cells.push(`<a class="hm-c l${level(n)}${isToday}" href="${ctx.href(`${BLOG}${list[0].slug}/`)}" title="${esc(label)}" aria-label="${esc(label)}"></a>`);
+    }
+  }
+  /* the longest run of weeks in a row with something new */
+  let run = 0, best = 0;
+  for (const has of weeksWith) { run = has ? run + 1 : 0; best = Math.max(best, run); }
+  const inYear = posts.filter((p) => p.date >= start && p.date <= end);
+  const total = words(inYear);
+  return `<div class="card heatmap" data-reveal>
+<p class="hm-sum">过去一年写了 <b class="num">${inYear.length}</b> 篇${total ? `，约 <b class="num">${wan(total).replace(/\s*字$/, '')}</b> 字` : ''}${best > 1 ? `；最长连续 <b class="num">${best}</b> 周都有新文章` : ''}</p>
+<div class="hm-scroll" data-hm-scroll>
+<div class="hm" style="--weeks:${WEEKS}">
+<div class="hm-months" aria-hidden="true">${months.join('')}</div>
+<div class="hm-days" aria-hidden="true"><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span><span></span></div>
+<div class="hm-grid">${cells.join('')}</div>
+</div>
+</div>
+<p class="hm-legend" aria-hidden="true"><span>少</span><span class="hm-c"></span><span class="hm-c l1"></span><span class="hm-c l2"></span><span class="hm-c l3"></span><span class="hm-c l4"></span><span>多</span></p>
+</div>`;
 }
 
 const secHead = (id, title, link = '') => `<header class="bh-sec-head"><h2 id="${id}">${title}</h2>${link}</header>`;
@@ -69,9 +129,8 @@ const secHead = (id, title, link = '') => `<header class="bh-sec-head"><h2 id="$
 export function blogHomePage(cfg, ctx, posts, tags) {
   const lead = cfg.blog?.lead || '';
   const words = posts.reduce((n, p) => n + (p.words || 0), 0);
-  const [first, ...rest] = posts;
-  const recent = rest.slice(0, 5);
-  const years = byYear(posts);
+  const first = posts.find((p) => p.pinned) || posts[0];
+  const recent = posts.filter((p) => p !== first).slice(0, 5);
   const archiveHref = ctx.href(ARCHIVE);
   const allLink = `<a class="text-link" href="${archiveHref}">全部 ${posts.length} 篇${icon.chevron}</a>`;
   return {
@@ -98,7 +157,7 @@ export function blogHomePage(cfg, ctx, posts, tags) {
 <li><b class="num">${posts.length}</b> 篇文章</li>
 ${words ? `<li>约 <b class="num">${wan(words).replace(/\s*字$/, '')}</b> 字</li>` : ''}
 ${tags.length ? `<li><b class="num">${tags.length}</b> 个主题</li>` : ''}
-${first ? `<li>最近更新 <b class="num">${ymd(first.date)}</b></li>` : ''}
+${posts[0] ? `<li>最近更新 <b class="num">${ymd(posts[0].date)}</b></li>` : ''}
 </ul>
 <div class="bh-actions">
 <form class="bh-search glass" action="${archiveHref}" method="get" role="search" data-refract>${icon.search}<label class="sr-only" for="bh-q">搜索文章</label><input id="bh-q" name="q" type="search" placeholder="搜索标题、摘要或标签" autocomplete="off" enterkeyhint="search"></form>
@@ -106,7 +165,7 @@ ${first ? `<li>最近更新 <b class="num">${ymd(first.date)}</b></li>` : ''}
 </div>
 </header>
 
-${first ? `<section class="bh-feature" aria-label="最新文章">${feature(first, ctx)}</section>` : '<p class="empty">第一篇文章即将发布。</p>'}
+${first ? `<section class="bh-feature" aria-label="${first.pinned ? '置顶文章' : '最新文章'}">${feature(first, ctx)}</section>` : '<p class="empty">第一篇文章即将发布。</p>'}
 
 ${recent.length ? `<section class="bh-sec" aria-labelledby="bh-recent">
 ${secHead('bh-recent', '最近更新', allLink)}
@@ -115,16 +174,12 @@ ${secHead('bh-recent', '最近更新', allLink)}
 
 ${tags.length ? `<section class="bh-sec" aria-labelledby="bh-topics">
 ${secHead('bh-topics', '主题')}
-<ul class="topic-grid">${topics(posts, tags, ctx)}</ul>
+<ul class="cloud" data-reveal>${cloud(tags, ctx)}</ul>
 </section>` : ''}
 
 ${posts.length ? `<section class="bh-sec" aria-labelledby="bh-archive">
-${secHead('bh-archive', '归档')}
-<a class="card bh-archive" href="${archiveHref}">
-<span class="bh-archive-text"><span class="bh-archive-title">全部文章</span><span class="bh-archive-sub">按时间排列，可以搜索，也可以按主题筛选</span></span>
-<span class="bh-years">${years.map((y) => `<span class="bh-year"><b class="num">${y.year}</b><small>${y.posts.length} 篇</small></span>`).join('')}</span>
-<span class="bh-archive-go" aria-hidden="true">${icon.arrow}</span>
-</a>
+${secHead('bh-archive', '写作记录', `<a class="text-link" href="${archiveHref}">按时间看全部文章${icon.chevron}</a>`)}
+${heatmap(posts, ctx)}
 </section>` : ''}
 
 <div class="archive-foot">${footer(cfg, ctx)}</div>
@@ -455,7 +510,7 @@ ${field('description', '摘要（不写就用正文第一段）', 'maxlength="30
 ${field('cover', '分享图（不写就用文章第一张图）', 'spellcheck="false"').replace('cm-field', 'cm-field ed-cover')}
 ${field('series', '系列（同名的文章连成一组，可不写）', 'maxlength="60"').replace('cm-field', 'cm-field ed-series')}
 <label class="cm-field ed-date ed-updated"><input name="updated" type="date" placeholder=" "><span class="cm-label">更新日期（大改过再填）</span></label>
-<label class="ed-check"><input type="checkbox" name="comments"> 允许评论</label>
+<div class="ed-checks"><label class="ed-check"><input type="checkbox" name="comments"> 允许评论</label><label class="ed-check" title="放在博客首页最上面的大卡片里"><input type="checkbox" name="pinned"> 置顶</label></div>
 </div>
 <p class="ed-note" data-ed-slug-note hidden></p>
 <div class="ed-missing" data-ed-missing hidden>

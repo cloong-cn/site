@@ -71,8 +71,8 @@ html:not(.js) .chip[aria-pressed="true"] { background: var(--card-bg); }
 .archive-head .back + .archive-title { margin-top: 24px; }
 
 /* ---------- the blog's front page ----------
-   a masthead of its own (its line, a few numbers, search, RSS), the newest article large, the next few as cards,
-   the tags as topics, and the way into the full archive */
+   a masthead of its own (its line, a few numbers, search, RSS), the pinned or newest article large, the next few as
+   cards, the subjects as a cloud, and the year of writing one square a day */
 body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --accent-bg: #0071e3; }
 
 .bh-head { padding: clamp(64px, 11vh, 120px) 0 clamp(36px, 6vh, 56px); }
@@ -90,26 +90,45 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
 .bh-search input::placeholder { color: var(--text-3); }
 .blog-home .btn { height: 48px; }
 
-/* pictures, and the generated tile for an article without one */
+/* pictures, and the cover set in type for an article without one */
 .feature-media, .pcard-media { position: relative; overflow: hidden; background: var(--surface); }
 .feature-media::after, .pcard-media::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--media-edge); pointer-events: none; }
 .feature-media picture, .pcard-media picture { position: relative; z-index: 1; display: block; width: 100%; height: 100%; }
 .feature-media img, .pcard-media img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .8s var(--ease-out); }
+/* the title, large, on the first tag's colours: lit from the top left, shaded to the bottom right, with a faint
+   pattern of the tag's own that fades out towards the words. Its type is sized to the cover (cqi), so the same
+   cover works as the big card and as a small one */
 .cover-art {
-  position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; color: #fff;
-  background: radial-gradient(120% 90% at 18% 12%, rgba(255, 255, 255, .34), transparent 55%), radial-gradient(90% 80% at 100% 100%, rgba(0, 0, 0, .22), transparent 60%), linear-gradient(135deg, var(--t1), var(--t2));
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+  padding: 7% 8% 8%; overflow: hidden; color: #fff; container-type: inline-size;
+  background: radial-gradient(120% 90% at 0% 0%, rgba(255, 255, 255, .26), transparent 55%), radial-gradient(110% 90% at 100% 100%, rgba(0, 0, 0, .3), transparent 62%), linear-gradient(135deg, var(--t1), var(--t2));
   transition: transform .8s var(--ease-out);
 }
-.cover-glyph { font: 600 clamp(72px, 9vw, 128px)/1 var(--font-display); letter-spacing: -.04em; text-shadow: 0 6px 30px rgba(0, 0, 0, .18); }
-.cover-word { position: absolute; left: 18px; bottom: 14px; font-size: 13px; font-weight: 600; letter-spacing: .04em; opacity: .85; }
-.pcard .cover-glyph { font-size: clamp(48px, 5vw, 72px); }
+.cover-art::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  -webkit-mask-image: linear-gradient(200deg, #000 5%, rgba(0, 0, 0, .35) 45%, transparent 80%); mask-image: linear-gradient(200deg, #000 5%, rgba(0, 0, 0, .35) 45%, transparent 80%);
+}
+.cover-art[data-pattern="grid"]::before { background: linear-gradient(rgba(255, 255, 255, .17) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, rgba(255, 255, 255, .17) 1px, transparent 1px) 0 0 / 22px 22px; }
+.cover-art[data-pattern="dots"]::before { background: radial-gradient(rgba(255, 255, 255, .34) 1.2px, transparent 1.7px) 0 0 / 15px 15px; }
+.cover-art[data-pattern="arcs"]::before { background: repeating-radial-gradient(circle at 108% -8%, transparent 0 22px, rgba(255, 255, 255, .2) 22px 23.5px); }
+.cover-art[data-pattern="lines"]::before { background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, .16) 0 1.2px, transparent 1.2px 12px); }
+.cover-tag { position: relative; align-self: flex-start; padding: .32em .85em; border-radius: 999px; background: rgba(255, 255, 255, .2); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22); font-size: clamp(11px, 3.6cqi, 14px); font-weight: 600; letter-spacing: .04em; }
+.cover-title {
+  position: relative; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  font: 700 clamp(17px, 8cqi, 44px)/1.22 var(--font-display); letter-spacing: -.02em; text-wrap: balance;
+  word-break: keep-all; overflow-wrap: anywhere; text-shadow: 0 2px 16px rgba(0, 0, 0, .16);
+}
 :is(.feature, .pcard):hover :is(img, .cover-art) { transform: scale(1.035); }
 
-.feature, .pcard, .topic, .bh-archive { transition: transform .3s var(--ease-spring); }
-:is(.feature, .pcard, .topic, .bh-archive):active { transform: scale(.985); transition-duration: .1s; }
+/* cards lift a little under the pointer, and give as they are pressed */
+.feature, .pcard { transition: transform .4s var(--ease-spring), box-shadow .4s var(--ease-out); }
+@media (hover: hover) {
+  .feature:hover, .pcard:hover { transform: translateY(-4px); box-shadow: var(--card-shadow), 0 26px 50px -18px rgba(0, 0, 0, .32); }
+}
+:is(.feature, .pcard):active { transform: translateY(-2px) scale(.985); transition-duration: .1s; }
 .tag-line { font-size: 13px; color: var(--text-3); }
 
-/* the newest article */
+/* the pinned or newest article */
 .feature { --r: var(--r-xl); --pad: 12px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: stretch; }
 .feature-media { min-height: 320px; aspect-ratio: 16 / 10; }
 .feature-body { display: flex; flex-direction: column; justify-content: center; padding: clamp(20px, 3vw, 44px); }
@@ -118,7 +137,7 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
 .feature-title { margin-top: 16px; font: 600 clamp(26px, 2.8vw, 38px)/1.22 var(--font-display); letter-spacing: -.015em; text-wrap: balance; transition: color .2s; }
 .feature-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin-top: 14px; font-size: 17px; line-height: 1.7; color: var(--text-2); }
 .feature-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-top: 28px; }
-.feature:hover .feature-title, .pcard:hover .pcard-title, .topic:hover .topic-name { color: var(--link); }
+.feature:hover .feature-title, .pcard:hover .pcard-title { color: var(--link); }
 
 /* sections below it */
 .bh-sec { margin-top: clamp(64px, 10vh, 104px); }
@@ -138,29 +157,47 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
 .pcard-desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 15px; line-height: 1.6; color: var(--text-3); }
 .pcard .tag-line { margin-top: auto; padding-top: 4px; }
 
-/* topics: one card per tag, in the colours its articles' tiles use */
-.topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-.topic { --r: var(--r-md); --pad: 18px; display: flex; flex-direction: column; gap: 10px; height: 100%; }
-.topic-head { display: flex; align-items: center; gap: 10px; }
-.topic-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--t1), var(--t2)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--t1) 18%, transparent); }
-.topic-name { font-size: 17px; font-weight: 600; transition: color .2s; }
-.topic-count { margin-left: auto; font-size: 13px; color: var(--text-3); }
-.topic-latest { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 14px; line-height: 1.55; color: var(--text-3); }
-.topic-latest::before { content: "最近："; }
+/* the subjects: one cloud, the more articles the larger and stronger the word, in the colours of its covers */
+.cloud { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.cloud-tag {
+  display: inline-flex; align-items: center; gap: .5em; padding: .42em .95em; border-radius: 999px;
+  background: color-mix(in srgb, var(--t1) calc(7% + var(--k) * 11%), var(--surface)); color: var(--text);
+  font-size: calc(14px + var(--k) * 8px); font-weight: 500; line-height: 1.3;
+  transition: background-color .25s, transform .35s var(--ease-spring);
+}
+.cloud-tag:hover { background: color-mix(in srgb, var(--t1) 26%, var(--surface)); transform: translateY(-2px); }
+.cloud-tag:active { transform: scale(.96); transition-duration: .1s; }
+.cloud-dot { flex: none; width: .5em; height: .5em; border-radius: 50%; background: linear-gradient(135deg, var(--t1), var(--t2)); }
+.cloud-n { font-size: max(11px, .62em); font-weight: 500; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
-/* the way into the archive */
-.bh-archive { --r: var(--r-lg); display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 20px 32px; padding: 24px 24px 24px 28px; }
-.bh-archive-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.bh-archive-title { font-size: 19px; font-weight: 600; transition: color .2s; }
-.bh-archive-sub { font-size: 15px; color: var(--text-3); }
-.bh-years { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-.bh-year { display: flex; flex-direction: column; align-items: flex-end; }
-.bh-year b { font: 600 22px/1.2 var(--font-display); }
-.bh-year small { font-size: 12px; color: var(--text-3); }
-.bh-archive-go { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--surface); color: var(--text); }
-.bh-archive-go .arrow { transition: transform .3s var(--ease-out); }
-.bh-archive:hover .bh-archive-title { color: var(--link); }
-.bh-archive:hover .bh-archive-go .arrow { transform: translateX(3px); }
+/* the year of writing: a square a day, Monday at the top, the more written that day the stronger the colour */
+.heatmap { --r: var(--r-lg); --pad: clamp(18px, 3vw, 28px); --g: 3px; }
+.hm-sum { font-size: 15px; line-height: 1.6; color: var(--text-2); }
+.hm-sum b { font-weight: 600; color: var(--text); }
+.hm-scroll { margin-top: 20px; container-type: inline-size; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+/* the squares grow to fill the card (up to 18px); below 10px they stop shrinking and the year scrolls sideways */
+.hm { --c: clamp(10px, (100cqi - 28px) / var(--weeks) - var(--g), 18px); display: grid; grid-template-columns: auto max-content; grid-template-rows: auto auto; column-gap: 8px; row-gap: 6px; width: max-content; padding: 3px; } /* padding: room for the outline round today and a hovered square */
+.hm-months { grid-column: 2; display: grid; grid-template-columns: repeat(var(--weeks), var(--c)); column-gap: var(--g); font-size: 11px; line-height: 1; color: var(--text-3); }
+.hm-months span { grid-row: 1; white-space: nowrap; }
+.hm-days { grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(7, var(--c)); row-gap: var(--g); font-size: 10px; line-height: var(--c); color: var(--text-3); }
+.hm-grid { grid-column: 2; grid-row: 2; display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, var(--c)); grid-auto-columns: var(--c); gap: var(--g); }
+.hm-c { display: block; width: var(--c); height: var(--c); border-radius: 3px; background: color-mix(in srgb, var(--text) 7%, transparent); }
+.hm-c.l1 { background: color-mix(in srgb, var(--link) 32%, transparent); }
+.hm-c.l2 { background: color-mix(in srgb, var(--link) 52%, transparent); }
+.hm-c.l3 { background: color-mix(in srgb, var(--link) 76%, transparent); }
+.hm-c.l4 { background: var(--link); }
+.hm-c.is-future { visibility: hidden; }
+.hm-c.is-today { outline: 1.5px solid var(--text-3); outline-offset: 1px; }
+a.hm-c { transition: transform .2s var(--ease-spring); }
+a.hm-c:hover, a.hm-c:focus-visible { transform: scale(1.35); outline: 2px solid var(--text); outline-offset: 1px; }
+.hm-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; font-size: 11px; color: var(--text-3); }
+.hm-legend .hm-c { --c: 11px; }
+.hm-legend > span:first-child { margin-right: 4px; }
+.hm-legend > span:last-child { margin-left: 4px; }
+
+/* coming into view: a short rise (bloghome.js adds the classes; without it, or with less motion asked for, nothing moves) */
+.js [data-reveal].is-hidden { opacity: 0; transform: translateY(18px); }
+.js [data-reveal].is-in { transition: opacity .6s var(--ease-out) var(--d, 0ms), transform .75s var(--ease-out) var(--d, 0ms); }
 
 @media (max-width: 900px) {
   .feature { grid-template-columns: minmax(0, 1fr); }
@@ -169,19 +206,12 @@ body.blog-home { --fs-body: 17px; --fs-small: 13px; --accent: var(--link); --acc
   .post-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .post-grid > li, .post-grid > li.is-big { grid-column: span 1; }
   .is-big .pcard-title { font-size: 18px; }
-  .bh-archive { grid-template-columns: minmax(0, 1fr) auto; }
-  .bh-years { grid-row: 2; grid-column: 1 / -1; }
-  .bh-year { align-items: flex-start; }
 }
 @media (max-width: 600px) {
   .post-grid { grid-template-columns: minmax(0, 1fr); }
   .bh-search { flex-basis: 100%; }
   .bh-stats { gap: 6px 18px; font-size: 14px; }
-  .bh-archive { padding: 20px; }
-  .topic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .topic { --pad: 14px; gap: 8px; }
-  .topic-name { font-size: 16px; }
-  .topic-latest { font-size: 13px; }
+  .cloud { gap: 8px; }
 }
 
 /* ---------- article ---------- */
