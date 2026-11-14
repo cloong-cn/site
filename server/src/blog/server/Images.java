@@ -5,12 +5,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Year;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -129,6 +131,83 @@ final class Images {
     return Files.readAllBytes(f);
   }
 
+  /* ================================================================ the picture library */
+
+  /**
+   * Every upload, newest first: its address, size and date, where it is shown now (Store.mediaUsers), and whether only
+   * older versions still have it. One that nothing has at all is cleared out a week after it came (sweep).
+   */
+  static List<Map<String, Object>> library(Site site, Store store) throws IOException {
+    List<Map<String, Object>> out = new ArrayList<>();
+    if (!Files.isDirectory(site.media)) return out;
+    Map<String, List<String>> users = store.mediaUsers();
+    Set<String> anywhere = new HashSet<>();
+    for (String t : store.allTexts()) anywhere.addAll(Posts.mediaIn(t));
+    List<Path> files;
+    try (var s = Files.walk(site.media, 2)) {
+      files = s.filter(Files::isRegularFile).toList();
+    }
+    for (Path f : files) {
+      String rel = site.media.relativize(f).toString().replace('\\', '/');
+      if (!MEDIA.matcher(rel).matches()) continue;
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("path", "/media/" + rel);
+      m.put("size", Files.size(f));
+      m.put("at", Files.getLastModifiedTime(f).toMillis());
+      List<String> u = users.getOrDefault(rel, List.of());
+      m.put("usedBy", u);
+      m.put("history", u.isEmpty() && anywhere.contains(rel));
+      out.add(m);
+    }
+    out.sort((a, b) -> Long.compare((Long) b.get("at"), (Long) a.get("at")));
+    return out;
+  }
+
+  record File(byte[] data, String type) {}
+
+  /* at most two thumbnails made at a time: each one is a node process */
+  private static final Semaphore THUMBS = new Semaphore(2);
+
+  private static Path thumbOf(Site site, String rel) { return site.thumbs.resolve(rel.replaceAll("\\.\\w+$", ".webp")); }
+
+  /**
+   * A small copy of an upload for the library: 360 pixels wide, WebP, made once by scripts/thumb.mjs and kept in
+   * thumbs/. SVG and GIF are sent as they are; when the copy cannot be made, the picture itself. Null: no such upload.
+   */
+  static File thumb(Site site, String rel) throws IOException {
+    if (!MEDIA.matcher(rel).matches()) return null;
+    Path src = site.media.resolve(rel);
+    if (!Files.isRegularFile(src) || Files.isSymbolicLink(src)) return null;
+    if (rel.endsWith(".svg") || rel.endsWith(".gif")) return new File(Files.readAllBytes(src), type(rel));
+    Path out = thumbOf(site, rel);
+    if (!Files.isRegularFile(out) && site.ready()) {
+      boolean got = false;
+      try {
+        got = THUMBS.tryAcquire(30, java.util.concurrent.TimeUnit.SECONDS);
+        if (got && !Files.isRegularFile(out)) {
+          Files.createDirectories(out.getParent());
+          Site.Result r = Site.run(site.src, null, 60, List.of("node", site.src.resolve("scripts/thumb.mjs").toString(), src.toString(), out.toString()));
+          if (r.code() != 0) Log.warn("thumbnail of %s not made: %s", rel, r.err().strip());
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      } finally {
+        if (got) THUMBS.release();
+      }
+    }
+    return Files.isRegularFile(out) ? new File(Files.readAllBytes(out), "image/webp") : new File(Files.readAllBytes(src), type(rel));
+  }
+
+  /** Deletes an upload that nothing has any more: no article, version, album or home page (else 409). */
+  static void delete(Site site, Store store, String rel) throws IOException {
+    if (!MEDIA.matcher(rel).matches()) throw new Http.Fail(400, "path", "图片地址不对");
+    for (String t : store.allTexts()) {
+      if (Posts.mediaIn(t).contains(rel)) throw new Http.Fail(409, "in_use", "这张图片还有地方在用（文章、历史版本、图集或主页），不能删除");
+    }
+    if (!Files.deleteIfExists(site.media.resolve(rel))) throw new Http.Fail(404, "not_found", "没有这张图片");
+    Files.deleteIfExists(thumbOf(site, rel));
+  }
+
   /** Uploads no article, version or home page uses, after a week (a picture added and then removed again). */
   static int sweep(Site site, Store store) {
     if (!Files.isDirectory(site.media)) return 0;
@@ -143,6 +222,7 @@ final class Images {
           boolean stale = Files.getLastModifiedTime(f).toMillis() < cutoff;
           if (stale && (rel.startsWith(".tmp/") || (MEDIA.matcher(rel).matches() && !used.contains(rel)))) {
             Files.delete(f);
+            Files.deleteIfExists(thumbOf(site, rel)); /* its small copy too */
             removed[0]++;
           }
         } catch (IOException ignored) {

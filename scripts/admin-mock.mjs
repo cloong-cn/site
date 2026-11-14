@@ -4,7 +4,7 @@
 // sample data: the articles in content/blog/, content/site.json, the sample album, and made-up comments, releases,
 // backups and decoy-page visits. Everything you change lives in memory only: nothing is written to your files, nothing
 // is built or published, and restarting the dev server starts over. Any password and code sign in.
-import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, mkdir, writeFile, stat, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -56,7 +56,7 @@ export async function createAdminMock({ root }) {
         cover: data.cover || '', comments: data.comments !== false, body, extra,
       },
       aliases: Array.isArray(data.aliases) ? data.aliases : [],
-      updated: now - (i + 1) * 3.7 * 3600e3, deleted: null, live: null, firstPublished: null,
+      updated: now - (i + 1) * 3.7 * 3600e3, deleted: null, live: null, firstPublished: null, publishAt: null,
     };
     if (data.draft !== true) { p.live = structuredClone(p.post); p.firstPublished = Date.parse(p.post.date) || now - 30 * DAY; }
     posts.push(p);
@@ -76,7 +76,7 @@ export async function createAdminMock({ root }) {
   const state = (p) => (!p.live ? 'draft' : JSON.stringify(p.live) !== JSON.stringify(p.post) ? 'changed' : 'published');
   const listItem = (p) => ({
     id: p.id, slug: p.post.slug, title: p.post.title, date: p.post.date, tags: p.post.tags, words: words(p.post.body),
-    state: state(p), updated: p.updated, ...(p.deleted ? { deleted: p.deleted } : {}),
+    state: state(p), updated: p.updated, publishAt: p.publishAt, ...(p.deleted ? { deleted: p.deleted } : {}),
   });
   const byId = (id) => posts.find((p) => p.id === Number(id));
 
@@ -151,6 +151,63 @@ export async function createAdminMock({ root }) {
     j.log += '已上线\n';
   }
 
+  /* publishing an article: by the button (as the editor showed it) or by the clock (定时发布: whatever is saved) */
+  function publishJob(p, label) {
+    return job(label, BUILD_LINES, (jj) => {
+      if (p.deleted) return { error: '这篇文章在回收站里' };
+      if (p.live && p.live.slug !== p.post.slug) p.aliases = [...new Set([...p.aliases, p.live.slug])];
+      p.live = structuredClone(p.post);
+      p.firstPublished = p.firstPublished || Date.now();
+      p.publishAt = null;
+      revisions.push({ id: nextRev++, postId: p.id, kind: 'publish', at: Date.now(), post: structuredClone(p.post) });
+      release(jj, label);
+      jj.result.url = 'http://localhost:4321/blog/' + p.post.slug + '/';
+    });
+  }
+  /* the clock: what the real service does every minute, here every ten seconds */
+  setInterval(() => {
+    for (const p of posts) {
+      if (!p.publishAt || p.deleted || p.publishAt > Date.now()) continue;
+      p.publishAt = null;
+      publishJob(p, '定时发布：' + p.post.title);
+    }
+  }, 10_000).unref();
+
+  /* ---------- the picture library: what was uploaded here, and the sample album's photos */
+  const removedDemo = new Set();
+  const thumbs = new Map();
+  async function library() {
+    const out = [];
+    const add = async (file, p) => { try { const st = await stat(file); out.push({ path: p, size: st.size, at: st.mtimeMs }); } catch { /* gone */ } };
+    if (existsSync(media)) {
+      for (const year of await readdir(media)) {
+        if (!/^\d{4}$/.test(year)) continue;
+        for (const name of await readdir(path.join(media, year))) await add(path.join(media, year, name), '/media/' + year + '/' + name);
+      }
+    }
+    if (existsSync(galleryDir)) {
+      for (const name of await readdir(galleryDir)) if (/\.(jpe?g|png|webp)$/i.test(name) && !removedDemo.has(name)) await add(path.join(galleryDir, name), '/media/demo/' + name);
+    }
+    /* where each one is shown now; and everything that ever had it (versions too) */
+    const users = new Map(), ever = new Set();
+    const seen = (text, who) => {
+      for (const m of String(text).match(/\/media\/[\w./-]+?\.(?:jpe?g|png|webp|gif|svg)/g) || []) {
+        ever.add(m);
+        if (!who) continue;
+        const l = users.get(m) || users.set(m, []).get(m);
+        if (!l.includes(who)) l.push(who);
+      }
+    };
+    for (const p of posts) {
+      seen(p.post.body + ' ' + p.post.cover, '《' + p.post.title + '》' + (p.deleted ? '（回收站里）' : ''));
+      if (p.live) seen(p.live.body + ' ' + p.live.cover, '《' + p.post.title + '》');
+    }
+    for (const a of albums) seen(JSON.stringify(a.data), '图集「' + a.data.title + '」');
+    seen(JSON.stringify(site.data), '主页');
+    for (const r of revisions) seen(r.post.body + ' ' + r.post.cover, null);
+    return out.map((x) => ({ ...x, usedBy: users.get(x.path) || [], history: !users.get(x.path) && ever.has(x.path) })).sort((a, b) => b.at - a.at);
+  }
+
   /* ------------------------------------------------------------------ answering */
 
   let signedIn = true;
@@ -166,6 +223,21 @@ export async function createAdminMock({ root }) {
     if (route === 'login') { await json(req); signedIn = true; send(res, 200, { ok: true, name: site.data.name }); return; }
     if (!signedIn) { fail(res, 401, 'auth', '请先登录'); return; }
 
+    if (route.startsWith('files/thumb/media/')) {
+      const rel = route.slice('files/thumb/media/'.length);
+      const file = rel.startsWith('demo/') ? path.join(galleryDir, path.basename(rel)) : path.join(media, rel);
+      const base = rel.startsWith('demo/') ? galleryDir : media;
+      if (!path.resolve(file).startsWith(path.resolve(base)) || !existsSync(file)) { fail(res, 404, 'not_found', '没有这张图片'); return; }
+      let out = thumbs.get(file), type = 'image/webp';
+      if (!out && /\.(svg|gif)$/i.test(file)) { out = await readFile(file); type = TYPES[path.extname(file).toLowerCase()]; }
+      else if (!out) {
+        try { out = await (await import('sharp')).default(file).rotate().resize({ width: 360, withoutEnlargement: true }).webp({ quality: 72 }).toBuffer(); thumbs.set(file, out); }
+        catch { out = await readFile(file); type = TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream'; }
+      }
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'private, max-age=300' });
+      res.end(out);
+      return;
+    }
     if (route.startsWith('files/')) {
       const rel = route.slice('files/'.length);
       let file = null;
@@ -193,7 +265,7 @@ export async function createAdminMock({ root }) {
       case 'posts/get': {
         const p = byId(q.get('id'));
         if (!p) { fail(res, 404, 'not_found', '没有这篇文章'); return; }
-        send(res, 200, { ...structuredClone(p.post), id: p.id, version: p.version, state: state(p), liveSlug: p.live ? p.live.slug : null, aliases: p.aliases, updated: p.updated, firstPublished: p.firstPublished, ...(p.deleted ? { deleted: p.deleted } : {}) });
+        send(res, 200, { ...structuredClone(p.post), id: p.id, version: p.version, state: state(p), liveSlug: p.live ? p.live.slug : null, aliases: p.aliases, updated: p.updated, firstPublished: p.firstPublished, publishAt: p.publishAt, ...(p.deleted ? { deleted: p.deleted } : {}) });
         return;
       }
       case 'posts/save': {
@@ -206,7 +278,7 @@ export async function createAdminMock({ root }) {
         if (id && !p) { fail(res, 404, 'not_found', '没有这篇文章'); return; }
         if (p && Number(d.version) !== p.version && !d.force) { fail(res, 409, 'changed', '这篇文章在别的窗口或设备上保存过了'); return; }
         const post = { slug, title: String(d.title || ''), date: String(d.date || ''), tags: Array.isArray(d.tags) ? d.tags : [], description: String(d.description || ''), cover: String(d.cover || ''), comments: d.comments !== false, body: String(d.body || ''), extra: Array.isArray(d.extra) ? d.extra : [] };
-        if (!p) { p = { id: Math.max(0, ...posts.map((x) => x.id)) + 1, version: 0, post, aliases: [], updated: 0, deleted: null, live: null, firstPublished: null }; posts.push(p); }
+        if (!p) { p = { id: Math.max(0, ...posts.map((x) => x.id)) + 1, version: 0, post, aliases: [], updated: 0, deleted: null, live: null, firstPublished: null, publishAt: null }; posts.push(p); }
         p.post = post;
         p.version++;
         p.updated = Date.now();
@@ -218,26 +290,29 @@ export async function createAdminMock({ root }) {
         const d = await json(req), p = byId(d.id);
         if (!p) { fail(res, 404, 'not_found', '没有这篇文章'); return; }
         if (Number(d.version) !== p.version) { fail(res, 409, 'changed', '这篇文章在别的窗口或设备上保存过了，刷新后再发布'); return; }
-        const j = job('发布：' + p.post.title, BUILD_LINES, (jj) => {
-          if (p.live && p.live.slug !== p.post.slug) p.aliases = [...new Set([...p.aliases, p.live.slug])];
-          p.live = structuredClone(p.post);
-          p.firstPublished = p.firstPublished || Date.now();
-          revisions.push({ id: nextRev++, postId: p.id, kind: 'publish', at: Date.now(), post: structuredClone(p.post) });
-          release(jj, '发布：' + p.post.title);
-          jj.result.url = `http://localhost:4321/blog/${p.post.slug}/`;
-        });
-        send(res, 202, { job: j.id });
+        send(res, 202, { job: publishJob(p, '发布：' + p.post.title).id });
+        return;
+      }
+      case 'posts/schedule': {
+        const d = await json(req), p = byId(d.id), at = Number(d.at) || 0;
+        if (!p || p.deleted) { fail(res, 409, 'trashed', '这篇文章在回收站里'); return; }
+        if (!at) { p.publishAt = null; send(res, 200, { ok: true }); return; }
+        if (at < Date.now() + 60e3) { fail(res, 400, 'at', '定时发布的时间要在一分钟以后'); return; }
+        if (at > Date.now() + 366 * DAY) { fail(res, 400, 'at', '定时发布最多定在一年以内'); return; }
+        p.publishAt = at;
+        send(res, 200, { ok: true, publishAt: at });
         return;
       }
       case 'posts/unpublish': {
         const p = byId((await json(req)).id);
         if (!p || !p.live) { fail(res, 409, 'not_published', '这篇文章没有发布'); return; }
-        send(res, 202, { job: job('撤下：' + p.post.title, BUILD_LINES, (jj) => { p.live = null; release(jj, '撤下：' + p.post.title); jj.log += '已从网站上撤下，文章还在，成了草稿\n'; }).id });
+        send(res, 202, { job: job('撤下：' + p.post.title, BUILD_LINES, (jj) => { p.live = null; p.publishAt = null; release(jj, '撤下：' + p.post.title); jj.log += '已从网站上撤下，文章还在，成了草稿\n'; }).id });
         return;
       }
       case 'posts/trash': {
         const p = byId((await json(req)).id);
         if (!p || p.deleted) { fail(res, 409, 'trashed', '已经在回收站里了'); return; }
+        p.publishAt = null;
         if (!p.live) { p.deleted = Date.now(); send(res, 200, { ok: true }); return; }
         send(res, 202, { job: job('删除：' + p.post.title, BUILD_LINES, (jj) => { p.live = null; p.deleted = Date.now(); release(jj, '删除：' + p.post.title); }).id });
         return;
@@ -276,6 +351,17 @@ export async function createAdminMock({ root }) {
         let width = 0, height = 0;
         try { const sharp = (await import('sharp')).default; const m = await sharp(data).metadata(); width = m.width || 0; height = m.height || 0; } catch { /* no sharp: no size */ }
         send(res, 200, { path: '/media/' + rel, width, height });
+        return;
+      }
+      case 'media': send(res, 200, { files: await library() }); return;
+      case 'media/delete': {
+        const p = String((await json(req)).path || '');
+        const item = (await library()).find((x) => x.path === p);
+        if (!item) { fail(res, 404, 'not_found', '没有这张图片'); return; }
+        if (item.usedBy.length || item.history) { fail(res, 409, 'in_use', '这张图片还有地方在用（文章、历史版本、图集或主页），不能删除'); return; }
+        if (p.startsWith('/media/demo/')) removedDemo.add(path.basename(p)); /* a sample photo: only hidden, the file stays */
+        else await unlink(path.join(media, p.slice('/media/'.length)));
+        send(res, 200, { ok: true });
         return;
       }
       case 'import': {

@@ -46,6 +46,9 @@
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   }
   function clock(ms) { return stamp(ms).slice(11); }
+  /* when a scheduled article goes up: "11-20 08:00" in the list, "11 月 20 日 08:00" in words */
+  function whenShort(ms) { return stamp(ms).slice(5); }
+  function whenText(ms) { var d = new Date(ms); return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   function today() {
     var d = new Date();
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
@@ -254,6 +257,7 @@
     else if (pane === 'albums') openAlbums();
     else if (pane === 'album') { if (!sameAlbum) openAlbum(arg); }
     else if (pane === 'comments') openComments();
+    else if (pane === 'media') openMedia();
     else if (pane === 'site') openSite();
     else if (pane === 'deploys') openDeploys();
     else if (pane === 'security') openSecurity();
@@ -313,8 +317,10 @@
         acts.appendChild(gone);
         row.appendChild(acts);
       } else {
-        var s = STATE[p.state] || STATE.draft;
-        row.appendChild(make('span', 'cm-badge ' + s[1], s[0]));
+        var s = p.publishAt ? ['定时 ' + whenShort(p.publishAt), 'is-scheduled'] : STATE[p.state] || STATE.draft;
+        var badgeEl = make('span', 'cm-badge ' + s[1], s[0]);
+        if (p.publishAt) badgeEl.title = '将在 ' + whenText(p.publishAt) + ' 自动发布';
+        row.appendChild(badgeEl);
       }
       li.appendChild(row);
       list.appendChild(li);
@@ -396,7 +402,7 @@
   var frame = $('[data-ed-frame]');
   var SLUG = /^[\p{L}\p{N}][\p{L}\p{N}_.-]{0,119}$/u;
   function fresh() {
-    return { id: 0, version: 0, state: 'draft', liveSlug: null, extra: [], saved: '', savedAt: 0, saving: null, again: false,
+    return { id: 0, version: 0, state: 'draft', liveSlug: null, publishAt: null, extra: [], saved: '', savedAt: 0, saving: null, again: false,
       slugTouched: false, blocked: '', publishing: false, error: '' };
   }
   var st = fresh();
@@ -469,9 +475,10 @@
 
   function buttons() {
     var badge = $('[data-ed-state]');
-    var s = !st.id ? ['新文章', ''] : STATE[st.state] || STATE.draft;
+    var s = !st.id ? ['新文章', ''] : st.publishAt ? ['定时 ' + whenShort(st.publishAt), 'is-scheduled'] : STATE[st.state] || STATE.draft;
     badge.textContent = s[0];
     badge.className = 'cm-badge ' + s[1];
+    badge.title = st.publishAt ? '将在 ' + whenText(st.publishAt) + ' 自动发布' : '';
     var pub = $('[data-ed-publish]');
     var changed = dirty() || st.state === 'changed';
     pub.textContent = st.state === 'draft' ? '发布' : changed ? '更新上线' : '已发布';
@@ -505,6 +512,7 @@
     st = fresh();
     setMode('write');
     $('[data-ed-more]').open = false;
+    $('[data-ed-schedule-box]').hidden = true;
     /* the preview finds [[ ]] links among the articles in the list: opened straight from an address, it is still empty */
     if (!allPosts.length) call('posts').then(function (d) { allPosts = d.posts || []; schedulePreview(); }, function () {});
     if (!id) {
@@ -524,6 +532,7 @@
       st.version = p.version;
       st.state = p.state;
       st.liveSlug = p.state === 'draft' ? null : p.liveSlug;
+      st.publishAt = p.publishAt || null;
       st.extra = p.extra || [];
       st.savedAt = p.updated;
       st.slugTouched = true;
@@ -695,6 +704,7 @@
     }).then(function (j) {
       st.state = dirty() ? 'changed' : 'published';
       st.liveSlug = f('slug').value.trim();
+      st.publishAt = null; /* published now: no longer waiting for its time */
       noteWith([wasDraft ? '已发布。 ' : '已更新上线。 ', linkTo(j.result.url, '查看文章')], 'ok', j.log);
     }).catch(function (err) {
       if (err.message) note(err.message, 'error', err.log);
@@ -705,6 +715,55 @@
     });
   }
   $('[data-ed-publish]').addEventListener('click', publish);
+
+  /* 定时发布: the article goes up by itself at the time chosen, with whatever is saved by then (the server checks every
+     minute). Its date becomes that day when it was earlier. 发布 now, 撤下 or 删除 clear the time */
+  var schedBox = $('[data-ed-schedule-box]'), schedAt = $('[data-sched-at]');
+  function localInput(ms) { var d = new Date(ms); return stamp(ms).slice(0, 10) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function schedUi() {
+    $('[data-sched-cancel]').hidden = !st.publishAt;
+    $('[data-sched-set]').textContent = st.publishAt ? '改成这个时间' : '定时发布';
+    $('[data-sched-note]').textContent = st.publishAt
+      ? '已定在 ' + whenText(st.publishAt) + ' 自动发布。到时发布的是那时已经保存的内容，之前接着改也没关系。'
+      : '到时会自动发布那时已经保存的内容（这里一直在自动保存），不用守着点发布。文章日期早于那天的，会改成那天。';
+  }
+  $('[data-ed-schedule]').addEventListener('click', function () {
+    more.open = false;
+    /* a suggestion: the next whole hour, at least an hour away */
+    var next = new Date(Date.now() + 3600e3);
+    next.setMinutes(0, 0, 0);
+    schedAt.value = localInput(st.publishAt || next.getTime());
+    schedAt.min = localInput(Date.now() + 120e3);
+    schedBox.hidden = false;
+    schedUi();
+    schedAt.focus();
+  });
+  $('[data-sched-close]').addEventListener('click', function () { schedBox.hidden = true; });
+  $('[data-sched-set]').addEventListener('click', function () {
+    var t = schedAt.value ? new Date(schedAt.value).getTime() : NaN;
+    if (!(t > Date.now() + 60e3)) { note('请选一个至少一分钟以后的时间', 'error'); schedAt.focus(); return; }
+    var day = schedAt.value.slice(0, 10);
+    if (f('date').value < day) { f('date').value = day; changed(); }
+    (dirty() || !st.id ? save({}) : Promise.resolve(true)).then(function (ok) {
+      if (!ok) throw new Error(st.error || '先保存成功才能定时发布');
+      return call('posts/schedule', { id: st.id, at: t });
+    }).then(function (r) {
+      st.publishAt = r.publishAt || t;
+      buttons();
+      schedUi();
+      schedBox.hidden = true;
+      note('已定好：' + whenText(st.publishAt) + ' 自动发布', 'ok');
+    }, function (err) { if (err.message) note(err.message, 'error'); });
+  });
+  $('[data-sched-cancel]').addEventListener('click', function () {
+    call('posts/schedule', { id: st.id, at: 0 }).then(function () {
+      st.publishAt = null;
+      buttons();
+      schedUi();
+      schedBox.hidden = true;
+      note('已取消定时发布', 'ok');
+    }, function (err) { note(err.message, 'error'); });
+  });
 
   /* the "更多" menu */
   var more = $('[data-ed-more]');
@@ -723,6 +782,7 @@
     }).then(function (j) {
       st.state = 'draft';
       st.liveSlug = null;
+      st.publishAt = null;
       buttons();
       note('已从网站撤下，文章还在，成了草稿', 'ok', j.log);
     }, function (err) { note(err.message, 'error', err.log); });
@@ -845,6 +905,7 @@
       var sel = body.value.slice(body.selectionStart, body.selectionEnd) || '提示的内容';
       block('> [!TIP]\n' + sel.split('\n').map(function (l) { return '> ' + l; }).join('\n') + '\n', 11, 11 + sel.length);
     } else if (cmd === 'image') fileInput.click();
+    else if (cmd === 'library') openPicker();
   });
 
   /* inside a ``` code block at this position? */
@@ -1870,6 +1931,126 @@
     reloadComments();
   });
   moreBtn.addEventListener('click', pageComments);
+
+  /* ================================================================ pictures (图片)
+     Every upload, with where it is used; in the editor the same pictures to choose from (从图片库选). The small copies
+     come from files/thumb/… (the server makes them once). Only a picture nothing uses can be deleted. */
+  var mediaFiles = [], mediaFilter = 'all';
+  function bytes(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function usedText(file) {
+    if (file.usedBy && file.usedBy.length) return '用在' + file.usedBy.slice(0, 3).join('、') + (file.usedBy.length > 3 ? ' 等 ' + file.usedBy.length + ' 处' : '');
+    return file.history ? '只在历史版本里' : '没有用到（上传一周后自动清理）';
+  }
+  function mediaCard(file, pick) {
+    var fig = make('figure', 'mg-item');
+    var thumb = make(pick ? 'button' : 'a', 'mg-thumb');
+    if (pick) { thumb.type = 'button'; thumb.setAttribute('aria-label', '插入这张图片'); }
+    else { thumb.href = API + 'files' + file.path; thumb.target = '_blank'; thumb.rel = 'noopener'; thumb.setAttribute('aria-label', '看原图'); }
+    var img = make('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.alt = '';
+    img.src = API + 'files/thumb' + file.path;
+    thumb.appendChild(img);
+    if (/\.svg$/i.test(file.path)) thumb.appendChild(make('span', 'mg-kind', 'SVG'));
+    fig.appendChild(thumb);
+    var cap = make('figcaption', 'mg-cap');
+    cap.appendChild(make('span', 'mg-use' + (file.usedBy && file.usedBy.length ? '' : ' is-unused'), usedText(file)));
+    cap.appendChild(make('span', 'mg-meta', stamp(file.at).slice(0, 10) + ' · ' + bytes(file.size)));
+    if (pick) {
+      thumb.addEventListener('click', function () { pick(file); });
+    } else {
+      var acts = make('span', 'mg-acts');
+      var copy = button('cm-link', '复制写法');
+      copy.addEventListener('click', function () {
+        var md = '![](' + file.path + ')';
+        (navigator.clipboard ? navigator.clipboard.writeText(md) : Promise.reject()).then(function () { note('已复制 ' + md + '，贴进文章就行', 'ok'); }, function () { window.prompt('复制这一行：', md); });
+      });
+      acts.appendChild(copy);
+      if (!(file.usedBy && file.usedBy.length) && !file.history) {
+        var del = button('cm-link mg-del', '删除');
+        del.addEventListener('click', function () {
+          if (!armed(del, '确认删除')) return;
+          call('media/delete', { path: file.path }).then(function () {
+            mediaFiles = mediaFiles.filter(function (x) { return x !== file; });
+            fig.classList.add('is-gone');
+            setTimeout(drawMedia, 250);
+            note('已删除', 'ok');
+          }, function (err) { note(err.message, 'error'); });
+        });
+        acts.appendChild(del);
+      }
+      cap.appendChild(acts);
+    }
+    fig.appendChild(cap);
+    return fig;
+  }
+  function loadMedia() {
+    return call('media').then(function (d) { mediaFiles = d.files || []; return mediaFiles; });
+  }
+  function drawMedia() {
+    var grid = $('[data-media-grid]');
+    grid.textContent = '';
+    var unused = mediaFiles.filter(function (x) { return !(x.usedBy && x.usedBy.length); });
+    var list = mediaFilter === 'unused' ? unused : mediaFiles;
+    list.forEach(function (file) { grid.appendChild(mediaCard(file, null)); });
+    var total = mediaFiles.reduce(function (n, x) { return n + (x.size || 0); }, 0);
+    $('[data-media-sum]').textContent = mediaFiles.length ? '共 ' + mediaFiles.length + ' 张，' + bytes(total) + (unused.length ? '；' + unused.length + ' 张没在用' : '') : '';
+    var empty = $('[data-media-empty]');
+    empty.textContent = mediaFiles.length ? '没有没用到的图片。' : '还没有上传过图片。';
+    empty.hidden = list.length > 0;
+  }
+  function openMedia() { loadMedia().then(drawMedia, function (err) { note(err.message, 'error'); }); }
+  $('[data-media-filter]').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-filter]');
+    if (!b) return;
+    mediaFilter = b.getAttribute('data-filter');
+    $$('[data-filter]', $('[data-media-filter]')).forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    drawMedia();
+  });
+  var mediaInput = $('[data-media-file]');
+  mediaInput.addEventListener('change', function () {
+    var list = Array.prototype.slice.call(mediaInput.files);
+    mediaInput.value = '';
+    if (!list.length) return;
+    var done = 0, failed = [];
+    note('正在上传 ' + list.length + ' 张…', 'busy');
+    list.reduce(function (p, file) {
+      return p.then(function () { return upload(file).then(function () { done++; }, function (e) { failed.push(e.message); }); });
+    }, Promise.resolve()).then(function () {
+      note('上传了 ' + done + ' 张' + (failed.length ? '；没成功：' + failed.join('、') : '') + '。还没用到的图片一周内要放进文章里，否则会被自动清理', failed.length ? 'error' : 'ok');
+      openMedia();
+    });
+  });
+
+  /* choosing one while writing: inserted where the caret is */
+  var picker = $('[data-media-picker]');
+  function openPicker() {
+    var grid = $('[data-mp-grid]');
+    grid.textContent = '';
+    $('[data-mp-empty]').hidden = true;
+    var at = body.selectionStart, to = body.selectionEnd;
+    picker.showModal();
+    loadMedia().then(function (files) {
+      files.forEach(function (file) {
+        grid.appendChild(mediaCard(file, function (chosen) {
+          picker.close();
+          body.focus();
+          body.setSelectionRange(at, to);
+          block('![](' + chosen.path + ')\n', 2, 2); /* the caret lands between [ ], for the picture's description */
+          note('已插入。方括号里可以写图片说明', 'ok');
+        }));
+      });
+      $('[data-mp-empty]').hidden = files.length > 0;
+    }, function (err) { picker.close(); note(err.message, 'error'); });
+  }
+  $('[data-mp-close]').addEventListener('click', function () { picker.close(); });
+  /* a click on the dimmed page around it (the dialog itself is the target there too, so by position) */
+  picker.addEventListener('click', function (e) {
+    if (e.target !== picker) return;
+    var r = picker.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) picker.close();
+  });
 
   /* ================================================================ home page */
   var SITE = [

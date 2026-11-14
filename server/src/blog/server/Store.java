@@ -51,7 +51,7 @@ final class Store {
   List<Map<String, Object>> list(boolean trash) {
     Pg.Rows r = db.with(c -> c.query(
         "SELECT p.id, p.slug, p.title, p.date::text AS date, p.tags::text AS tags, p.words, p.version, p.published_revision,"
-            + " " + MS.formatted("p.updated_at") + " AS updated, " + MS.formatted("p.deleted_at") + " AS deleted,"
+            + " " + MS.formatted("p.updated_at") + " AS updated, " + MS.formatted("p.deleted_at") + " AS deleted, " + MS.formatted("p.publish_at") + " AS publish_at,"
             + " (pr.id IS NOT NULL AND (pr.slug, pr.title, pr.date, pr.tags, pr.description, pr.cover, pr.comments, pr.body)"
             + "   IS DISTINCT FROM (p.slug, p.title, p.date, p.tags, p.description, p.cover, p.comments, p.body)) AS changed"
             + " FROM post p LEFT JOIN post_revision pr ON pr.id = p.published_revision"
@@ -67,6 +67,7 @@ final class Store {
       m.put("words", num(row.get("words")));
       m.put("state", state(row.get("published_revision"), row.get("changed")));
       m.put("updated", num(row.get("updated")));
+      m.put("publishAt", numOrNull(row.get("publish_at")));
       if (row.get("deleted") != null) m.put("deleted", num(row.get("deleted")));
       out.add(m);
     }
@@ -84,6 +85,7 @@ final class Store {
     return db.with(c -> {
       Pg.Rows r = c.query("SELECT p.id, p.version, p.published_revision, p.aliases::text AS aliases, " + fields("p")
           + ", " + MS.formatted("p.updated_at") + " AS updated, " + MS.formatted("p.deleted_at") + " AS deleted, " + MS.formatted("p.first_published_at") + " AS first_published,"
+          + " " + MS.formatted("p.publish_at") + " AS publish_at,"
           + " pr.slug AS live_slug, (pr.id IS NOT NULL AND (pr.slug, pr.title, pr.date, pr.tags, pr.description, pr.cover, pr.comments, pr.body)"
           + "   IS DISTINCT FROM (p.slug, p.title, p.date, p.tags, p.description, p.cover, p.comments, p.body)) AS changed"
           + " FROM post p LEFT JOIN post_revision pr ON pr.id = p.published_revision WHERE p.id = $1", id);
@@ -97,9 +99,27 @@ final class Store {
       m.put("aliases", strings(row.get("aliases")));
       m.put("updated", num(row.get("updated")));
       m.put("firstPublished", numOrNull(row.get("first_published")));
+      m.put("publishAt", numOrNull(row.get("publish_at")));
       if (row.get("deleted") != null) m.put("deleted", num(row.get("deleted")));
       return m;
     });
+  }
+
+  /* ================================================================ publishing later (定时发布) */
+
+  /** Sets when the article goes up by itself (milliseconds), or clears it (null). */
+  void schedule(long id, Long at) {
+    db.with(c -> at == null
+        ? c.query("UPDATE post SET publish_at = NULL WHERE id = $1", id)
+        : c.query("UPDATE post SET publish_at = to_timestamp($2::double precision / 1000) WHERE id = $1 AND deleted_at IS NULL", id, at));
+  }
+
+  /** The articles whose time has come, the earliest first. */
+  List<Long> due() {
+    Pg.Rows r = db.with(c -> c.query("SELECT id FROM post WHERE publish_at <= now() AND deleted_at IS NULL ORDER BY publish_at, id"));
+    List<Long> out = new ArrayList<>();
+    for (Map<String, String> row : r.maps()) out.add(num(row.get("id")));
+    return out;
   }
 
   /** The article (not in the trash) at this address: {id, version}, or null. */
@@ -223,7 +243,7 @@ final class Store {
     db.tx(c -> {
       current(c, built.id(), true); /* waits for, then holds, the article's row */
       long rev = revision(c, built.id(), built.post(), "publish");
-      c.query("UPDATE post SET published_revision = $2, aliases = $3::jsonb, first_published_at = coalesce(first_published_at, now()) WHERE id = $1",
+      c.query("UPDATE post SET published_revision = $2, aliases = $3::jsonb, first_published_at = coalesce(first_published_at, now()), publish_at = NULL WHERE id = $1",
           built.id(), rev, Json.write(aliasesAfter(built)));
       if (built.liveSlug() != null && !built.liveSlug().equals(built.post().slug())) {
         c.query("UPDATE comment SET post = $2 WHERE post = $1", built.liveSlug(), built.post().slug());
@@ -234,12 +254,12 @@ final class Store {
 
   /** Takes an article off the site (it stays as a draft). */
   void markUnpublished(long id) {
-    db.with(c -> c.query("UPDATE post SET published_revision = NULL WHERE id = $1", id));
+    db.with(c -> c.query("UPDATE post SET published_revision = NULL, publish_at = NULL WHERE id = $1", id));
   }
 
-  /** Into the trash: off the site too. */
+  /** Into the trash: off the site too, and no longer due to go up. */
   void trash(long id) {
-    db.with(c -> c.query("UPDATE post SET deleted_at = now(), published_revision = NULL WHERE id = $1 AND deleted_at IS NULL", id));
+    db.with(c -> c.query("UPDATE post SET deleted_at = now(), published_revision = NULL, publish_at = NULL WHERE id = $1 AND deleted_at IS NULL", id));
   }
 
   /** Back from the trash, as a draft. */
@@ -324,6 +344,36 @@ final class Store {
     List<Map<String, Object>> out = new ArrayList<>();
     for (Map<String, String> row : r.maps()) out.add(Map.of("id", num(row.get("id")), "at", num(row.get("at"))));
     return out;
+  }
+
+  /* ================================================================ the picture library */
+
+  /**
+   * Where each uploaded picture (media/…, as Posts.mediaIn finds it) is shown now: articles as written and as the site
+   * shows them (by title; the trash says so), albums, the home page. Pictures only in older versions are not here.
+   */
+  Map<String, List<String>> mediaUsers() {
+    return db.with(c -> {
+      Map<String, List<String>> out = new LinkedHashMap<>();
+      java.util.function.BiConsumer<String, String> add = (text, who) -> {
+        for (String m : Posts.mediaIn(text == null ? "" : text)) {
+          List<String> l = out.computeIfAbsent(m, k -> new ArrayList<>());
+          if (!l.contains(who)) l.add(who);
+        }
+      };
+      for (Map<String, String> r : c.query("SELECT title, deleted_at IS NOT NULL AS deleted, body || ' ' || cover AS text FROM post ORDER BY id DESC").maps()) {
+        add.accept(r.get("text"), "《" + r.get("title") + "》" + ("t".equals(r.get("deleted")) ? "（回收站里）" : ""));
+      }
+      for (Map<String, String> r : c.query("SELECT p.title, r.body || ' ' || r.cover AS text FROM post p JOIN post_revision r ON r.id = p.published_revision").maps()) {
+        add.accept(r.get("text"), "《" + r.get("title") + "》");
+      }
+      for (Map<String, String> r : c.query("SELECT data->>'title' AS title, data::text AS text FROM album ORDER BY id DESC").maps()) {
+        add.accept(r.get("text"), "图集「" + r.get("title") + "」");
+      }
+      Pg.Rows s = c.query("SELECT data::text AS text FROM site_revision ORDER BY id DESC LIMIT 1");
+      if (s.size() > 0) add.accept(s.get(0, "text"), "主页");
+      return out;
+    });
   }
 
   /* ================================================================ housekeeping */

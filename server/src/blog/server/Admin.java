@@ -27,8 +27,10 @@ import java.util.Map;
  * POST login {password, code}   POST logout   GET me
  * GET  posts[?trash=1]          GET posts/get?id=           POST posts/save      (the working copy, at once)
  * POST posts/publish            POST posts/unpublish        POST posts/trash     POST posts/restore   POST posts/purge
+ * POST posts/schedule {id, at}  (定时发布; at 0 clears it)
  * GET  posts/revisions?id=      GET posts/revision?id=
  * POST upload (a picture)       GET files/media/… files/images/… (pictures for the preview)
+ * GET  media (the picture library)   GET files/thumb/media/… (its small copies)   POST media/delete {path}
  * POST import?name=&amp;mode=   GET export[?ids=1,2]  (a zip of Markdown files and their pictures)
  * GET  site   POST site/save    GET site/revisions
  * GET  albums  GET albums/get?id=  POST albums/save  POST albums/delete
@@ -101,6 +103,13 @@ final class Admin implements HttpHandler {
   }
 
   private void route(HttpExchange x, String route, String method, String token) throws IOException {
+    if (route.startsWith("files/thumb/media/")) {
+      want(method, "GET");
+      Images.File t = Images.thumb(site, route.substring("files/thumb/media/".length()));
+      if (t == null) throw new Http.Fail(404, "not_found", "没有这张图片");
+      Http.sendFile(x, t.data(), t.type());
+      return;
+    }
     if (route.startsWith("files/")) {
       want(method, "GET");
       byte[] data = Images.file(site, route.substring("files/".length()));
@@ -130,6 +139,7 @@ final class Admin implements HttpHandler {
       case "posts/get" -> { want(method, "GET"); ok(x, store.get(id(Http.query(x).get("id")))); }
       case "posts/save" -> { want(method, "POST"); savePost(x); }
       case "posts/publish" -> { want(method, "POST"); publishPost(x); }
+      case "posts/schedule" -> { want(method, "POST"); schedule(x); }
       case "posts/unpublish" -> { want(method, "POST"); unpublish(x); }
       case "posts/trash" -> { want(method, "POST"); trash(x); }
       case "posts/restore" -> { want(method, "POST"); store.restore(number(Http.jsonBody(x), "id")); ok(x, Map.of("ok", true)); }
@@ -141,6 +151,14 @@ final class Admin implements HttpHandler {
       case "posts/revisions" -> { want(method, "GET"); ok(x, Map.of("revisions", store.revisions(id(Http.query(x).get("id"))))); }
       case "posts/revision" -> { want(method, "GET"); ok(x, store.revision(id(Http.query(x).get("id")))); }
       case "upload" -> { want(method, "POST"); upload(x); }
+      case "media" -> { want(method, "GET"); ok(x, Map.of("files", Images.library(site, store))); }
+      case "media/delete" -> {
+        want(method, "POST");
+        String path = text(Http.jsonBody(x), "path");
+        Images.delete(site, store, path.startsWith("/media/") ? path.substring(7) : path);
+        Log.info("picture %s deleted", path);
+        ok(x, Map.of("ok", true));
+      }
       case "import" -> { want(method, "POST"); importFile(x); }
       case "export" -> { want(method, "GET"); export(x); }
       case "site" -> { want(method, "GET"); site(x); }
@@ -226,11 +244,20 @@ final class Admin implements HttpHandler {
     Store.Current cur = store.current(id);
     if (cur.deleted()) throw new Http.Fail(409, "trashed", "这篇文章在回收站里");
     if (cur.version() != version) throw new Http.Fail(409, "changed", "这篇文章在别的窗口或设备上保存过了，刷新后再发布");
+    Jobs.Job job = startPublish(id, version, "发布：" + cur.post().title());
+    Http.send(x, 202, Map.of("job", job.id), "no-store");
+  }
+
+  /**
+   * Publishes an article in the background: the version the editor showed (version), or, from the clock (定时发布),
+   * whatever is saved when its time comes (version -1).
+   */
+  private Jobs.Job startPublish(long id, int version, String label) {
     site.requireReady();
-    String label = "发布：" + cur.post().title();
-    Jobs.Job job = jobs.submit(label, j -> {
+    return jobs.submit(label, j -> {
       Store.Current c = store.current(id);
-      if (c.version() != version || c.deleted()) throw new Http.Fail(409, "changed", "发布前文章又被改过了，再点一次发布");
+      if (c.deleted()) throw new Http.Fail(409, "trashed", "这篇文章在回收站里");
+      if (version >= 0 && c.version() != version) throw new Http.Fail(409, "changed", "发布前文章又被改过了，再点一次发布");
       String live = site.publish(j, label, dir -> writeContent(dir, id, c.post(), Store.aliasesAfter(c)));
       store.markPublished(c);
       if (c.liveSlug() != null && !c.liveSlug().equals(c.post().slug())) {
@@ -242,7 +269,42 @@ final class Admin implements HttpHandler {
       j.result.put("url", cfg.siteUrl + "/blog/" + c.post().slug() + "/");
       j.result.put("live", live);
     });
-    Http.send(x, 202, Map.of("job", job.id), "no-store");
+  }
+
+  /** 定时发布: {id, at} sets when the article goes up by itself (milliseconds since 1970); at 0 clears it. */
+  private void schedule(HttpExchange x) throws IOException {
+    Map<String, Object> in = Http.jsonBody(x);
+    long id = number(in, "id");
+    long at = number(in, "at");
+    Store.Current cur = store.current(id);
+    if (cur.deleted()) throw new Http.Fail(409, "trashed", "这篇文章在回收站里");
+    if (at == 0) {
+      store.schedule(id, null);
+      Log.info("article %d: no longer scheduled", id);
+      ok(x, Map.of("ok", true));
+      return;
+    }
+    long now = System.currentTimeMillis();
+    if (at < now + 60_000) throw new Http.Fail(400, "at", "定时发布的时间要在一分钟以后");
+    if (at > now + 366L * 24 * 3600 * 1000) throw new Http.Fail(400, "at", "定时发布最多定在一年以内");
+    store.schedule(id, at);
+    Log.info("article %d (%s) scheduled for %s", id, cur.post().slug(), java.time.Instant.ofEpochMilli(at));
+    ok(x, Map.of("ok", true, "publishAt", at));
+  }
+
+  /**
+   * Called every minute (Main): each article whose time has come goes up, as one publishing job, with whatever is
+   * saved then. Its time is cleared first, so it goes up once; when the site's code is not on the server yet, it waits.
+   */
+  void runDue() {
+    if (!site.ready()) return;
+    for (long id : store.due()) {
+      Store.Current cur = store.current(id);
+      store.schedule(id, null);
+      if (cur.deleted()) continue;
+      startPublish(id, -1, "定时发布：" + cur.post().title());
+      Log.info("scheduled article %d (%s): publishing", id, cur.post().slug());
+    }
   }
 
   private void unpublish(HttpExchange x) throws IOException {

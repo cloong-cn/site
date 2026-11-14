@@ -39,7 +39,7 @@ import java.util.stream.Stream;
 final class Site {
   static final Pattern BUILD = Pattern.compile("\\d{8}-\\d{6}-[0-9a-z]{1,12}");
 
-  final Path base, src, content, next, media, builds, live, backups, tmp, lock;
+  final Path base, src, content, next, media, thumbs, builds, live, backups, tmp, lock;
 
   Site(Path base) {
     this.base = base;
@@ -47,6 +47,7 @@ final class Site {
     content = base.resolve("content");
     next = base.resolve("content.next");
     media = base.resolve("media");
+    thumbs = base.resolve("thumbs"); /* small copies of the uploads for the picture library (Images.thumb): made again when missing, not backed up */
     builds = base.resolve("builds");
     live = base.resolve("live");
     backups = base.resolve("backups");

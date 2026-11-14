@@ -50,6 +50,7 @@ CREATE TABLE blog.post (
   version            integer     NOT NULL DEFAULT 1,             -- 每保存一次加 1；两个窗口同时改同一篇时靠它发现
   published_revision bigint,                                     -- 网站上现在显示的是哪个版本；空 = 没有发布
   first_published_at timestamptz,
+  publish_at         timestamptz,                                -- 定时发布：到这个时间自动发布（已经建好的数据库用 upgrade-schedule.sql 加上这一列）
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
   deleted_at         timestamptz                                 -- 在回收站里（30 天后自动彻底删除）

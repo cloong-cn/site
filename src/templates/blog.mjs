@@ -441,6 +441,7 @@ export function adminPage(cfg, ctx) {
 <nav class="seg admin-tabs" aria-label="后台">
 <a href="#/posts" data-tab="posts">文章</a>
 <a href="#/albums" data-tab="albums">图集</a>
+<a href="#/media" data-tab="media">图片</a>
 <a href="#/comments" data-tab="comments">评论 <span class="num tab-badge" data-pending></span></a>
 <a href="#/site" data-tab="site">主页</a>
 <a href="#/deploys" data-tab="deploys">发布 <span class="tab-dot" data-backup-dot hidden></span></a>
@@ -491,6 +492,7 @@ export function adminPage(cfg, ctx) {
 <details class="ed-more" data-ed-more>
 <summary class="btn btn-ghost ed-btn" aria-label="更多操作">更多</summary>
 <div class="ed-menu" role="menu">
+<button type="button" role="menuitem" data-ed-schedule>定时发布…</button>
 <button type="button" role="menuitem" data-ed-history>历史版本</button>
 <button type="button" role="menuitem" data-ed-export>导出这篇（Markdown）</button>
 <button type="button" role="menuitem" data-ed-unpublish>从网站撤下（变回草稿）</button>
@@ -500,6 +502,13 @@ export function adminPage(cfg, ctx) {
 <button class="btn btn-ghost ed-btn" type="button" data-ed-save>保存</button>
 <button class="btn btn-primary ed-btn" type="button" data-ed-publish>发布</button>
 </div>
+</div>
+<div class="ed-schedule" data-ed-schedule-box hidden>
+<label class="cm-field ed-date ed-sched-at"><input type="datetime-local" data-sched-at placeholder=" "><span class="cm-label">到这个时间自动发布</span></label>
+<button class="btn btn-primary ad-btn" type="button" data-sched-set>定时发布</button>
+<button class="btn btn-ghost ad-btn" type="button" data-sched-cancel hidden>取消定时</button>
+<button class="cm-link" type="button" data-sched-close>收起</button>
+<p class="ed-sched-note" data-sched-note></p>
 </div>
 <input class="ed-title" name="title" placeholder="标题" maxlength="120" autocomplete="off">
 <div class="ed-meta">
@@ -541,6 +550,7 @@ ${tool('task', '待办清单', ico('M4 5h5v5H4zM5.5 7.5l1 1 2-2M12 7.5h8M4 14h5v
 ${tool('code', '代码块', ico('M8 8l-4 4 4 4M16 8l4 4-4 4M13.5 6l-3 12'))}
 ${tool('table', '表格', ico('M4 5h16v14H4zM4 10h16M4 15h16M10 5v14'))}
 ${tool('callout', '提示框', ico('M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3zM9.5 19h5M10.5 21.5h3'))}
+${tool('library', '从图片库选', ico('M3 7.5A2.5 2.5 0 0 1 5.5 5H8l1.5-2h5L16 5h2.5A2.5 2.5 0 0 1 21 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5zM12 9.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6z'))}
 ${tool('image', '插入图片', ico('M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5zM4 16l4.5-4.5a2 2 0 0 1 2.8 0L17 17M14 14l1.5-1.5a2 2 0 0 1 2.8 0L20 14.3M15.5 8.5h.01'))}
 <span class="ed-tool-gap"></span>
 <div class="seg ed-mode" role="group" aria-label="显示"><button type="button" data-mode="write" aria-pressed="true">编辑</button><button type="button" data-mode="preview" aria-pressed="false">预览</button></div>
@@ -630,6 +640,20 @@ ${field('slug', '网址（/gallery/ 后面那段）', 'maxlength="80" spellcheck
 <p class="admin-empty" data-al-empty hidden>还没有照片。</p>
 </div>
 
+<div class="pane pane-wide" data-pane="media" hidden>
+<div class="pane-head"><h1 class="pane-title">图片</h1><label class="btn btn-primary pane-action">上传图片<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml" multiple hidden data-media-file></label></div>
+<p class="pane-sub">在后台上传过的所有图片，标着用在哪里。点「复制写法」贴进文章就能用；写文章时也可以点工具栏上的「从图片库选」。哪里都没用到的图片，上传一周后会自动清理，也可以在这里手动删掉。</p>
+<div class="list-tools">
+<div class="seg admin-filter" role="group" aria-label="筛选" data-media-filter>
+<button type="button" data-filter="all" aria-pressed="true">全部</button>
+<button type="button" data-filter="unused" aria-pressed="false">没用到的</button>
+</div>
+<span class="media-sum" data-media-sum></span>
+</div>
+<div class="media-grid" data-media-grid></div>
+<p class="admin-empty" data-media-empty hidden>还没有上传过图片。</p>
+</div>
+
 <div class="pane" data-pane="site" hidden>
 <div class="pane-head"><h1 class="pane-title">主页</h1><button class="btn btn-primary pane-action" type="button" data-site-save>保存并发布</button></div>
 <p class="pane-sub">首页上的名字、介绍、链接、作品、服务和“关于”。保存后自动重新发布。</p>
@@ -656,6 +680,11 @@ ${field('slug', '网址（/gallery/ 后面那段）', 'maxlength="80" spellcheck
 </section>
 
 <p class="admin-offline" data-view="offline" hidden></p>
+<dialog class="media-picker" data-media-picker aria-label="从图片库选择">
+<div class="mp-head"><h2 class="mp-title">从图片库选择</h2><span class="mp-hint">点一张插入到光标处</span><button class="cm-link" type="button" data-mp-close>关闭</button></div>
+<div class="media-grid is-picker" data-mp-grid></div>
+<p class="admin-empty" data-mp-empty hidden>还没有上传过图片。</p>
+</dialog>
 </main>
 <div class="job-toast" data-toast hidden role="status" aria-live="polite"><div class="job-row"><span class="job-dot" data-toast-dot></span><span class="job-text" data-toast-text></span><button class="cm-link" type="button" data-toast-log>记录</button><button class="cm-link" type="button" data-toast-close aria-label="关闭">✕</button></div><pre class="job-log" data-toast-pre hidden></pre></div>`,
     /* KaTeX and the code colours come later, when the preview first needs them (admin.js, need) */

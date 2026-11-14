@@ -154,7 +154,8 @@ public final class Main {
     Store store = new Store(pool);
     Jobs jobs = new Jobs();
     HttpServer server = listen(cfg.listenHost, cfg.listenPort);
-    server.createContext(cfg.path + "/api/", new Admin(cfg, pool, store, site, jobs));
+    Admin admin = new Admin(cfg, pool, store, site, jobs);
+    server.createContext(cfg.path + "/api/", admin);
     ThreadPoolExecutor w = workers(16);
     server.setExecutor(w);
     server.start();
@@ -175,6 +176,14 @@ public final class Main {
         Log.warn("housekeeping failed: %s", e.getMessage());
       }
     }, 2, 24 * 60, TimeUnit.MINUTES);
+    /* every minute: articles set to go up by themselves (定时发布) whose time has come */
+    daily.scheduleWithFixedDelay(() -> {
+      try {
+        admin.runDue();
+      } catch (RuntimeException e) {
+        Log.warn("scheduled publishing: %s", e.getMessage());
+      }
+    }, 1, 1, TimeUnit.MINUTES);
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
       server.stop(2);
       w.shutdownNow();
