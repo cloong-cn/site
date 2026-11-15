@@ -182,8 +182,9 @@
   }
 
   /* ======================================================================
-     Local details: the visitor's city, time and weather, and the sun's day there — on the hero's glass pill and in
-     the cards of the "now" section. Where they are comes from the time zone alone: no location prompt, no IP lookup
+     Local details. On the hero's glass pill: the visitor's city, time and weather and their next sunrise or sunset.
+     In the time card under "now": my side — the clock where I am, the sun's day there, and how far apart we are.
+     Where anyone is comes from a time zone alone: no location prompt, no IP lookup
      ====================================================================== */
   telemetry();
 
@@ -192,12 +193,28 @@
       var els = document.querySelectorAll(sel);
       for (var i = 0; i < els.length; i++) els[i].textContent = text;
     }
-    var place = null;
+    var place = null; /* the visitor's */
     var timeCard = document.querySelector('[data-w-time]');
+    var mine = timeCard ? { tz: timeCard.getAttribute('data-tz') } : null; /* mine; lat and lon once tz.json is in */
     var arcDone = document.querySelector('.w-arc-done');
     var arcSun = document.querySelector('.w-arc-sun');
     function pad(n) { return (n < 10 ? '0' : '') + n; }
     function hm(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+    /* the wall clock in a time zone, as minutes ahead of UTC (null for a name this browser does not know) */
+    function offsetIn(tz, now) {
+      try {
+        var p = {};
+        new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
+          .formatToParts(new Date(now)).forEach(function (x) { p[x.type] = x.value; });
+        return Math.round((Date.UTC(+p.year, p.month - 1, +p.day, p.hour % 24, +p.minute) - Math.floor(now / 60000) * 60000) / 60000);
+      } catch (e) { return null; }
+    }
+    function hmAt(t, off) { var d = new Date(t + off * 60000); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+    function apart(off) {
+      var d = off + new Date().getTimezoneOffset(), a = Math.abs(d), h = Math.floor(a / 60), m = a % 60;
+      if (!d) return '和你同一时区';
+      return (d > 0 ? '比你那边快 ' : '比你那边慢 ') + (h ? h + ' 小时' : '') + (m ? (h ? ' ' : '') + m + ' 分' : '');
+    }
 
     /* sunrise and sunset (formulas after Astronomy Answers, accurate to about a minute) */
     var RAD = Math.PI / 180, DAY = 86400000, J1970 = 2440588, J2000 = 2451545, OBL = RAD * 23.4397;
@@ -216,13 +233,16 @@
       var set = J2000 + 0.0009 + (w + lw) / (2 * Math.PI) + n + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
       return { rise: toMs(noon - (set - noon)), set: toMs(set) };
     }
-    function dayOf(now, offset) {
-      var day = new Date(now); day.setHours(12, 0, 0, 0); day.setDate(day.getDate() + (offset || 0));
-      return sunDay(+day, place.lat, place.lon);
+    /* the sun's day k days from today, at a place: today by the visitor's calendar, or (off given) by that place's own */
+    function dayOf(now, k, where, off) {
+      var noon;
+      if (off == null) { var day = new Date(now); day.setHours(12, 0, 0, 0); day.setDate(day.getDate() + k); noon = +day; }
+      else { var w = new Date(now + off * 60000); noon = Date.UTC(w.getUTCFullYear(), w.getUTCMonth(), w.getUTCDate() + k, 12) - off * 60000; }
+      return sunDay(noon, where.lat, where.lon);
     }
     function nextSun(now) {
       for (var k = 0; k <= 1; k++) {
-        var t = dayOf(now, k);
+        var t = dayOf(now, k, place);
         if (!t) return '';
         if (t.rise > now) return '日出 ' + hm(new Date(t.rise));
         if (t.set > now) return '日落 ' + hm(new Date(t.set));
@@ -236,15 +256,19 @@
     }
     var clockSet = false;
     function tick() {
-      var now = Date.now(), t = hm(new Date(now));
-      rollAll('[data-hud-time], [data-w-clock]', t, !clockSet);
+      var now = Date.now(), off = mine ? offsetIn(mine.tz, now) : null;
+      rollAll('[data-hud-time]', hm(new Date(now)), !clockSet);
+      if (off != null) {
+        rollAll('[data-w-clock]', hmAt(now, off), !clockSet);
+        fill('[data-w-diff]', apart(off));
+      } else if (timeCard) timeCard.hidden = true; /* a time zone this browser cannot read: no card rather than a wrong clock */
       clockSet = true;
-      if (!place) return;
-      fill('[data-hud-sun]', nextSun(now));
-      var d = dayOf(now, 0);
+      if (place) fill('[data-hud-sun]', nextSun(now));
+      if (off == null || mine.lat == null) return;
+      var d = dayOf(now, 0, mine, off);
       if (!d) return;
-      fill('[data-w-rise]', '日出 ' + hm(new Date(d.rise)));
-      fill('[data-w-set]', '日落 ' + hm(new Date(d.set)));
+      fill('[data-w-rise]', '日出 ' + hmAt(d.rise, off));
+      fill('[data-w-set]', '日落 ' + hmAt(d.set, off));
       /* the time card: the sun's path from sunrise to sunset, walked so far, and where it is now */
       var p = (now - d.rise) / (d.set - d.rise), up = p > 0 && p < 1;
       if (timeCard) timeCard.classList.toggle('is-night', !up);
@@ -261,32 +285,18 @@
     var tz = '';
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* old browser */ }
     fetch(hero.getAttribute('data-tz-src')).then(function (r) { return r.json(); }).then(function (table) {
-      var name = typeof table[tz] === 'string' ? table[tz] : tz, c = table[name];
-      if (Array.isArray(c)) place = { lat: c[0], lon: c[1], city: name.split('/').pop().replace(/_/g, ' ') };
+      function at(zone) { var name = typeof table[zone] === 'string' ? table[zone] : zone, c = table[name]; return Array.isArray(c) ? { name: name, lat: c[0], lon: c[1] } : null; }
+      var v = at(tz), m = mine && at(mine.tz);
+      if (v) place = { lat: v.lat, lon: v.lon, city: v.name.split('/').pop().replace(/_/g, ' ') };
+      if (m) { mine.lat = m.lat; mine.lon = m.lon; }
     }).catch(function () { /* keep "当地" */ }).then(function () {
-      if (!place) { fill('[data-w-sky]', '没能确定你所在的城市'); return; }
-      fill('[data-hud-city]', place.city);
-      fill('[data-w-city]', place.city);
       tick();
+      if (!place) return;
+      fill('[data-hud-city]', place.city);
       weather();
     });
 
-    /* WMO weather codes, as Open-Meteo reports them */
-    function sky(code) {
-      var c = Number(code);
-      if (c === 0) return '晴';
-      if (c === 1) return '大致晴朗';
-      if (c === 2) return '多云';
-      if (c === 3) return '阴';
-      if (c === 45 || c === 48) return '有雾';
-      if (c >= 51 && c <= 57) return '毛毛雨';
-      if (c >= 61 && c <= 67) return '下雨';
-      if (c >= 71 && c <= 77) return '下雪';
-      if (c >= 80 && c <= 82) return '阵雨';
-      if (c === 85 || c === 86) return '阵雪';
-      if (c >= 95) return '雷雨';
-      return '';
-    }
+    /* the temperature for the pill, from Open-Meteo */
     function weather() {
       if (document.readyState !== 'complete') { window.addEventListener('load', weather); return; } /* after the page itself */
       var key = place.lat + ',' + place.lon, cached = null;
@@ -294,20 +304,17 @@
       if (cached && cached.k === key && Date.now() - cached.at < 20 * 60000) { showWeather(cached); return; }
       var ctrl = window.AbortController ? new AbortController() : null;
       var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 6000);
-      fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.lat + '&longitude=' + place.lon + '&current=temperature_2m,relative_humidity_2m,weather_code',
+      fetch('https://api.open-meteo.com/v1/forecast?latitude=' + place.lat + '&longitude=' + place.lon + '&current=temperature_2m',
         { signal: ctrl ? ctrl.signal : undefined }).then(function (r) { return r.json(); }).then(function (j) {
-        var w = { k: key, at: Date.now(), temp: j.current.temperature_2m, rh: j.current.relative_humidity_2m, code: j.current.weather_code };
+        var w = { k: key, at: Date.now(), temp: j.current.temperature_2m };
         try { localStorage.setItem('hud-weather-2', JSON.stringify(w)); } catch (e) { /* no storage */ }
         showWeather(w);
-      }).catch(function () { fill('[data-w-sky]', '暂时查不到天气'); }).then(function () { clearTimeout(timer); });
+      }).catch(function () { /* the pill simply goes without */ }).then(function () { clearTimeout(timer); });
     }
     function showWeather(w) {
       var t = Number(w.temp);
       if (isNaN(t)) return;
       fill('[data-hud-temp]', Math.round(t) + '°C');
-      rollAll('[data-w-temp]', Math.round(t) + '°');
-      fill('[data-w-sky]', sky(w.code) || '现在');
-      if (w.rh != null) fill('[data-w-humid]', '湿度 ' + Math.round(w.rh) + '%');
     }
   }
 

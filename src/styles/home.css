@@ -92,6 +92,7 @@ html:has(body.home) { scroll-behavior: smooth; }
 .bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .w { --r: var(--r-lg); --pad: 20px; position: relative; display: flex; flex-direction: column; min-height: 188px; overflow: hidden; color: var(--text); }
 .w { grid-column: span 2; }
+.w:last-child:nth-child(odd) { grid-column: 1 / -1; } /* an odd card out (one switched off) takes the whole row */
 /* cards that are links lift a little under the pointer */
 a.w { transition: transform .35s var(--ease-out); }
 a.w:hover { transform: translateY(-2px); }
@@ -113,8 +114,19 @@ a.w:hover { transform: translateY(-2px); }
 .w-time.is-night .w-arc-done { stroke: var(--text-3); }
 .w-time.is-night .w-arc-sun { display: none; } /* the sun is down: not on the path */
 
-/* weather: a faint sky in the corner, like the Weather widget */
-.w-weather { background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, #64d2ff 22%, transparent), transparent 62%), var(--card-bg); }
+/* what I am working on: the words themselves, large, and a slow pulse to say it is still going */
+.w-doing { background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, #30d158 14%, transparent), transparent 62%), var(--card-bg); }
+.w-lede { margin-top: auto; padding-top: 16px; font: 600 clamp(20px, 2.2vw, 26px)/1.35 var(--font-display); letter-spacing: -.01em; text-wrap: pretty; }
+.w-live { align-self: center; width: 8px; height: 8px; border-radius: 50%; background: #30d158; box-shadow: 0 0 0 0 color-mix(in srgb, #30d158 50%, transparent); }
+@media (prefers-reduced-motion: no-preference) { .w-live { animation: w-pulse 2.4s var(--ease-out) infinite; } }
+@keyframes w-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #30d158 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
+
+/* the self-hosted services: a name and a coloured dot each, like a status page — and nothing that says where */
+.w-services { display: grid; gap: 10px; margin-top: 16px; }
+.w-services li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.w-services li::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #30d158; }
+.w-services li.is-maintenance::before { background: #ff9f0a; }
+.w-services li span:last-child { margin-left: auto; font-size: var(--fs-small); color: var(--text-3); }
 
 /* writing: how much, and how long the last few articles were */
 .w-stats .w-foot { align-items: flex-end; }
