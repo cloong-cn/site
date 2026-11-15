@@ -19,10 +19,14 @@ html:has(body.home) { scroll-behavior: smooth; }
 .sec { position: relative; background: var(--bg); scroll-margin-top: var(--topbar); }
 .sec-hero { min-height: 100vh; min-height: 100svh; overflow: hidden; color: var(--text); }
 .sec-inner { padding-top: clamp(72px, 11vh, 120px); padding-bottom: clamp(72px, 11vh, 120px); }
-.sec-now .sec-inner { padding-top: clamp(96px, 14vh, 152px); }
-/* wide screens: the section's name sits in a narrow column on the left, its content on the right */
+/* now and the blog read as a pair: half the usual air between them, so the list shows under the cards */
+.sec-now .sec-inner { padding-bottom: clamp(32px, 5vh, 56px); }
+.sec-blog .sec-inner { padding-top: clamp(32px, 5vh, 56px); }
+/* wide screens: the section's name sits in a narrow column on the left, its content takes the rest. The left column
+   is only as wide as a lead line needs (272px, narrower on smaller screens), so the cards, the list and the
+   screenshots get the room */
 @media (min-width: 900px) {
-  .sec-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr); column-gap: clamp(40px, 6vw, 96px); align-items: start; }
+  .sec-inner { display: grid; grid-template-columns: clamp(220px, 22vw, 272px) minmax(0, 1fr); column-gap: clamp(40px, 4vw, 56px); align-items: start; }
   /* the name lines up with the first line of text across the way (rows and rules start 22px down) */
   .sec-inner > .sec-head { grid-column: 1; grid-row: span 3; margin-bottom: 0; padding-top: 22px; }
   .sec-about .about-grid { padding-top: 22px; }
@@ -196,26 +200,6 @@ html:has(.w-week[open]) { overflow: hidden; } /* the page stays put behind it */
 @keyframes w-fade { from { opacity: 0; } }
 
 
-/* what I am working on: the words themselves, large, and a slow pulse to say it is still going */
-.w-doing { background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, #30d158 14%, transparent), transparent 62%), var(--card-bg); }
-.w-lede { margin-top: auto; padding-top: 16px; font: 600 clamp(20px, 2.2vw, 26px)/1.35 var(--font-display); letter-spacing: -.01em; text-wrap: pretty; }
-.w-live { align-self: center; width: 8px; height: 8px; border-radius: 50%; background: #30d158; box-shadow: 0 0 0 0 color-mix(in srgb, #30d158 50%, transparent); }
-@media (prefers-reduced-motion: no-preference) { .w-live { animation: w-pulse 2.4s var(--ease-out) infinite; } }
-@keyframes w-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, #30d158 50%, transparent); } 70%, 100% { box-shadow: 0 0 0 8px transparent; } }
-
-/* the self-hosted services: a name and a coloured dot each, like a status page — and nothing that says where */
-.w-services { display: grid; gap: 10px; margin-top: 16px; }
-.w-services li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
-.w-services li::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: #30d158; }
-.w-services li.is-maintenance::before { background: #ff9f0a; }
-.w-services li span:last-child { margin-left: auto; font-size: var(--fs-small); color: var(--text-3); }
-
-/* writing: how much, and how long the last few articles were */
-.w-stats .w-foot { align-items: flex-end; }
-.w-bars { display: flex; align-items: flex-end; gap: 5px; height: 44px; }
-.w-bars li { flex: none; width: 8px; height: var(--h); min-height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 18%, transparent); }
-.w-bars li:last-child { background: var(--text); }
-
 /* ==========================================================================
    Blog — a grouped list: picture, title and summary, date
    ========================================================================== */
@@ -234,6 +218,24 @@ html:has(.w-week[open]) { overflow: hidden; } /* the page stays put behind it */
 .row-sub { font-size: 15px; line-height: 1.5; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .row-date { align-self: start; padding-top: 3px; font-size: var(--fs-small); color: var(--text-3); }
 .post-empty { padding: 22px 0; font-size: var(--fs-body); color: var(--text-3); }
+
+/* under the section's name, how much there is to read: the count and the words, and a bar for each of the last few
+   articles, as tall as it is long. One line above the list on a narrow screen; stacked in the left column on a wide one */
+.written { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 16px; }
+.written-sum { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 .35em; font-size: 15px; color: var(--text-2); }
+.written-sum b { font: 600 28px/1.1 var(--font-display); letter-spacing: -.02em; color: var(--text); }
+.written-sum span { margin-left: .5em; }
+.written-recent span { display: none; font-size: var(--fs-small); color: var(--text-3); }
+.bars { display: flex; align-items: flex-end; gap: 5px; height: 28px; }
+.bars li { flex: none; width: 8px; height: var(--h); min-height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.bars li:last-child { background: var(--text); }
+@media (min-width: 900px) {
+  .written { display: block; margin-top: 28px; }
+  .written-sum span { flex-basis: 100%; margin: 4px 0 0; }
+  .written-recent { margin-top: 20px; }
+  .written-recent span { display: block; margin-top: 8px; }
+  .bars { height: 44px; }
+}
 .more-link { margin-top: 28px; }
 
 /* ==========================================================================
@@ -410,7 +412,7 @@ html:has(.w-week[open]) { overflow: hidden; } /* the page stays put behind it */
 @media (max-width: 1180px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .w { grid-column: span 1; }
-  .w:last-child:nth-child(odd) { grid-column: 1 / -1; } /* an odd card out takes the whole row */
+  .w:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 0; } /* an odd card out takes the whole row, as tall as its words */
 }
 @media (max-width: 720px) {
   .bento { gap: 12px; }

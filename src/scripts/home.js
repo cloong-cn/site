@@ -265,11 +265,13 @@
       return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / RAD;
     }
     /* the time card's chart: the day from midnight to midnight across, the sun's real height up — one scale for every
-       day of the year, so a winter noon stands lower than a summer one. The horizon is at y=50; straight up (+90°) is y=5 and straight down (−90°) y=95, so nothing is ever cut off */
+       day of the year, so a winter noon stands lower than a summer one. The chart is wide and low (300×64, home.mjs), so
+       it stays short however wide the card grows: the horizon is at y=32; straight up (+90°) is y=2 and straight down
+       (−90°) y=62, so nothing is ever cut off */
     var arcTrack = document.querySelector('.w-arc-track');
-    var GROUND = 50, SAMPLES = 144, curveKey = '', curve = [];
+    var GROUND = 32, SAMPLES = 144, curveKey = '', curve = [];
     function ax(f) { return 6 + 288 * f; }
-    function ay(alt) { return GROUND - alt * 0.5; }
+    function ay(alt) { return GROUND - alt / 3; }
     function pathOf(pts) { return pts.length ? 'M' + pts.map(function (p) { return p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join('L') : ''; }
     function drawSun(now, off) {
       var w = new Date(now + off * 60000), start = Date.UTC(w.getUTCFullYear(), w.getUTCMonth(), w.getUTCDate()) - off * 60000;

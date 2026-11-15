@@ -159,8 +159,12 @@
     }
 
     function draw(now, dt) {
+      /* clear in the canvas's own pixels: at a fractional scale (150%) W * dpr ends half way into the last column,
+         which a clear in CSS pixels only half wipes — and what is drawn there builds up, frame after frame, into a
+         bright line down the edge */
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, W, H);
       var k = S.wind || 0, dir = side(), hv = drift(), t = now / 1000, i, p;
 
       if (stars.length) {
