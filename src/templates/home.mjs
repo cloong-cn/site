@@ -102,7 +102,8 @@ ${rows ? `<ol class="card group">${rows}</ol>` : '<p class="post-empty">第一�
 const stackOf = (s) => String(s || '').split(/\s*[·•,，、/|]\s*/).filter(Boolean);
 
 function project(p, ctx, shape) {
-  const links = [p.source && `<a href="${esc(p.source)}" target="_blank" rel="noopener">源码 ${icon.external}</a>`, p.demo && `<a href="${esc(p.demo)}" target="_blank" rel="noopener">演示 ${icon.external}</a>`].filter(Boolean).join('');
+  /* the article about it first (postHref: resolved from p.post by the build), then the outside links */
+  const links = [p.postHref && `<a href="${esc(ctx.href(p.postHref))}">介绍文章 ${icon.chevron}</a>`, p.source &&`<a href="${esc(p.source)}" target="_blank" rel="noopener">源码 ${icon.external}</a>`, p.demo && `<a href="${esc(p.demo)}" target="_blank" rel="noopener">演示 ${icon.external}</a>`].filter(Boolean).join('');
   const src = p.image && (p.image.startsWith('/') ? ctx.href(p.image) : p.image);
   const img = p.media ? picture(p.media, ctx.asset(''), { alt: `${p.name}的截图`, sizes: shape === 'wide' ? '(max-width: 900px) calc(100vw - 48px), 560px' : '(max-width: 900px) calc(100vw - 48px), 420px' })
     : src ? `<img src="${esc(src)}" alt="${esc(p.name)}的截图" loading="lazy" decoding="async">` : '';

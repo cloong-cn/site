@@ -21,6 +21,7 @@
         "stack": "WebGL · GLSL",
         "source": "",
         "demo": "",
+        "post": "how-this-blog-works#首屏：一个着色器画出整个场景",
         "image": "",
         "live": "planet"
       },
@@ -30,6 +31,7 @@
         "stack": "Node.js · HTML · CSS",
         "source": "",
         "demo": "",
+        "post": "building-this-site",
         "image": "/images/work/site.png"
       },
       {
@@ -38,6 +40,7 @@
         "stack": "Java 21 · PostgreSQL · systemd",
         "source": "",
         "demo": "",
+        "post": "how-this-blog-works#后端：零依赖的 Java 服务",
         "image": "/images/work/comments.png"
       },
       {
@@ -46,6 +49,7 @@
         "stack": "Java · TCP · SCRAM",
         "source": "",
         "demo": "",
+        "post": "how-this-blog-works#自己实现的 PostgreSQL 客户端",
         "image": "/images/work/pg-client.png"
       }
     ]

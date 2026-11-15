@@ -46,13 +46,15 @@ final class SiteData {
     Map<String, Object> work = obj(in.get("work"), "work", Set.of("lead", "projects"));
     List<Object> projects = new ArrayList<>();
     for (Object o : list(work.get("projects"), "work.projects", 12)) {
-      Map<String, Object> p = obj(o, "work.projects", Set.of("name", "desc", "stack", "source", "demo", "image", "live"));
+      Map<String, Object> p = obj(o, "work.projects", Set.of("name", "desc", "stack", "source", "demo", "post", "image", "live"));
       Map<String, Object> q = new LinkedHashMap<>();
       q.put("name", text(p, "name", 40, true));
       q.put("desc", text(p, "desc", 200, false));
       q.put("stack", text(p, "stack", 80, false));
       q.put("source", web(p, "source"));
       q.put("demo", web(p, "demo"));
+      /* the article about it, written as inside [[ ]]: the build finds it (or notes that it cannot) */
+      q.put("post", text(p, "post", 160, false));
       String image = text(p, "image", 300, false);
       if (!image.isEmpty() && !Posts.image(image) && !WEB.matcher(image).matches()) throw bad("作品截图要填 /images/ 开头的地址");
       q.put("image", image);

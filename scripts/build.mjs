@@ -475,6 +475,19 @@ function linkPosts(posts) {
   }
   /* newest first, as the posts are */
   for (const src of posts) for (const t of src.links) t.backlinks.push({ post: src, context: around(src.html, t.slug) });
+
+  /* a project on the home page can point at the article that tells its story: work.projects[].post is written as
+     inside [[ ]] — the article's address, title or old address, and #a section if wanted. It becomes postHref here */
+  for (const pr of cfg.work?.projects || []) {
+    delete pr.postHref;
+    if (!pr.post) continue;
+    const [to, part] = String(pr.post).split('#').map((s) => s.trim());
+    const target = find(to.replace(/^\/?blog\//, '').replace(/\/+$/, ''));
+    if (!target) { linkNotes.push(`主页作品「${pr.name}」：介绍文章 ${pr.post} 找不到（网址、旧网址和标题都对不上，或者那篇还是草稿），先不显示这个链接`); continue; }
+    const h = part ? headsOf(target).find((x) => norm(x.text) === norm(part) || x.id === part || x.id === slugify(part)) : null;
+    if (part && !h) linkNotes.push(`主页作品「${pr.name}」：小节「${part}」在《${target.title}》里没有，链接会打开文章开头`);
+    pr.postHref = `/blog/${encodeURI(target.slug)}/${h ? '#' + encodeURIComponent(h.id) : ''}`;
+  }
 }
 
 /* series: the articles that share a `series:` name, oldest first. Related: up to three others that share the most
