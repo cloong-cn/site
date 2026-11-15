@@ -33,9 +33,10 @@ ${lead ? `<p class="sec-lead">${esc(lead)}</p>` : ''}
 
 /* ------------------------------------------------------------------ now: small cards, like widgets */
 
-/* The visitor's own time and weather are on the hero's pill; these cards are about my side: the time where I am,
-   what I am working on, the services on my server and the writing. Each card shows only when it has something
-   to say. The services card names them and nothing more: never an address (lab.services[].host stays private) */
+/* Two wide cards on top — the time where I am, and the weather where the visitor is — then the smaller ones about
+   me: what I am working on, the services on my server and the writing. Each card shows only when it has something
+   to say, and the rows share out their width among the cards they have (--span, of six columns).
+   The services card names them and nothing more: never an address (lab.services[].host stays private) */
 const STATUS = { up: '运行中', maintenance: '维护中' };
 
 function now(cfg, ctx, posts) {
@@ -44,37 +45,66 @@ function now(cfg, ctx, posts) {
   const total = posts.reduce((n, p) => n + (p.words || 0), 0);
   const recent = posts.slice(0, 8).reverse();
   const most = Math.max(1, ...recent.map((p) => p.words || 0));
-  const cards = [
-    here && `<article class="card w w-time" data-w-time data-tz="${esc(here.timeZone)}">
+  /* the sun's height over the day, drawn by home.js: time across (midnight to midnight), height up, the horizon at y=50 */
+  const top = [
+    here && ((span) => `<article class="card w w-time" style="--span:${span}" data-w-time data-tz="${esc(here.timeZone)}">
 <p class="w-label"><span>${esc(here.city || here.timeZone.split('/').pop().replace(/_/g, ' '))}</span><span data-w-diff></span></p>
-<p class="w-big num" data-w-clock>--:--</p>
-<svg class="w-arc" viewBox="0 0 300 96" aria-hidden="true"><path class="w-arc-track" d="M14 88A136 76 0 0 1 286 88" pathLength="100"/><path class="w-arc-done" d="M14 88A136 76 0 0 1 286 88" pathLength="100"/><line class="w-arc-ground" x1="0" y1="88" x2="300" y2="88"/><circle class="w-arc-sun" r="6" cx="-20" cy="-20"/></svg>
+<div class="w-when"><p class="w-big num" data-w-clock>--:--</p><p class="w-date num" data-w-date></p></div>
+<svg class="w-arc" viewBox="0 0 300 96" aria-hidden="true"><path class="w-arc-track"/><path class="w-arc-done"/><line class="w-arc-ground" x1="0" y1="50" x2="300" y2="50"/><circle class="w-arc-sun" r="6" cx="-20" cy="-20"/></svg>
 <p class="w-foot"><span data-w-rise></span><span data-w-set></span></p>
+</article>`),
+    /* the visitor's weather, its sky painted to match (home.js sets data-sky) */
+    (span) => `<article class="card w w-weather" style="--span:${span}" data-w-weather data-sky="none">
+<div class="w-sky" aria-hidden="true"><canvas class="w-sky-fx"></canvas></div>
+<p class="w-label"><span>你那边的天气</span><span data-w-city></span></p>
+<p class="w-big num" data-w-temp>--°</p>
+<p class="w-text"><span data-w-sky>查询中</span> <span class="num" data-w-range></span></p>
+<p class="w-foot"><span data-w-feel></span><span data-w-wind></span></p>
+<button class="w-hit" type="button" data-w-week-open aria-haspopup="dialog" aria-label="查看你那边近 7 天的天气" hidden></button>
 </article>`,
-    cfg.hero?.now && `<article class="card w w-doing">
+  ].filter(Boolean);
+  const bottom = [
+    cfg.hero?.now && ((span) => `<article class="card w w-doing" style="--span:${span}">
 <p class="w-label"><span>正在做</span><i class="w-live" aria-hidden="true"></i></p>
 <p class="w-lede">${esc(cfg.hero.now)}</p>
-</article>`,
-    services.length && `<article class="card w w-lab">
+</article>`),
+    services.length && ((span) => `<article class="card w w-lab" style="--span:${span}">
 <p class="w-label"><span>自托管</span><span class="num">${services.length} 项</span></p>
 <ul class="w-services">${services.map((s) => `<li class="is-${s.status === 'maintenance' ? 'maintenance' : 'up'}"><span>${esc(s.name)}</span><span>${STATUS[s.status] || STATUS.up}</span></li>`).join('')}</ul>
 ${cfg.lab.lead ? `<p class="w-foot"><span>${esc(cfg.lab.lead)}</span></p>` : ''}
-</article>`,
-    `<article class="card w w-stats">
+</article>`),
+    (span) => `<article class="card w w-stats" style="--span:${span}">
 <p class="w-label"><span>写作</span></p>
 <p class="w-big num">${posts.length}<small> 篇</small></p>
 <p class="w-text">一共约 ${wan(total)}</p>
 <div class="w-foot"><span>最近 ${recent.length} 篇的篇幅</span><ol class="w-bars" aria-label="最近几篇文章的篇幅">${recent.map((p) => `<li style="--h:${Math.max(8, Math.round(((p.words || 0) / most) * 100))}%" title="${esc(p.title)}：${p.words} 字"></li>`).join('')}</ol></div>
 </article>`,
   ].filter(Boolean);
+  const row = (cards) => cards.map((card) => card(6 / cards.length));
   return `<section class="sec sec-now" id="now" aria-labelledby="now-title">
 <div class="container sec-inner">
-${sectionHead('now', '此刻', '我这边的近况。')}
+${sectionHead('now', '此刻', '我这边的近况，和你那边的天气。')}
 <div class="bento">
-${cards.join('\n')}
+${[...row(top), ...row(bottom)].join('\n')}
 </div>
+${weekDialog()}
 </div>
 </section>`;
+}
+
+/* the next seven days where the visitor is, opened from the weather card; home.js fills the list */
+function weekDialog() {
+  return `<dialog class="w-week w-weather" data-w-week data-sky="none" aria-labelledby="w-week-title">
+<div class="w-sky" aria-hidden="true"><canvas class="w-sky-fx"></canvas></div>
+<div class="w-week-in">
+<header class="w-week-head">
+<div><p class="w-week-title" id="w-week-title"><span data-w-city></span> · 近 7 天</p><p class="w-week-now"><span class="num" data-w-week-temp></span><span data-w-week-sky></span></p></div>
+<button class="w-week-close" type="button" data-w-week-close aria-label="关闭"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2 2 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+</header>
+<ol class="w-days" data-w-days></ol>
+<p class="w-week-src">按你浏览器的时区推断城市 · 天气数据 Open-Meteo</p>
+</div>
+</dialog>`;
 }
 
 /* ------------------------------------------------------------------ blog: a grouped list, like a settings page */

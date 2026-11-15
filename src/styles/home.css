@@ -89,10 +89,9 @@ html:has(body.home) { scroll-behavior: smooth; }
 /* ==========================================================================
    Now — small cards like widgets, each with its own shape and content
    ========================================================================== */
-.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
 .w { --r: var(--r-lg); --pad: 20px; position: relative; display: flex; flex-direction: column; min-height: 188px; overflow: hidden; color: var(--text); }
-.w { grid-column: span 2; }
-.w:last-child:nth-child(odd) { grid-column: 1 / -1; } /* an odd card out (one switched off) takes the whole row */
+.w { grid-column: span var(--span, 2); } /* --span: set by the template, so each row's cards share its six columns */
 /* cards that are links lift a little under the pointer */
 a.w { transition: transform .35s var(--ease-out); }
 a.w:hover { transform: translateY(-2px); }
@@ -102,17 +101,100 @@ a.w:hover { transform: translateY(-2px); }
 .w-title { margin-top: 10px; font-size: var(--fs-body); font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 .w-sub { margin-top: 4px; font-size: 15px; line-height: 1.55; color: var(--text-2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 
-/* local time: the clock, and the sun's path from sunrise to sunset with where it stands now */
-.w-time { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr auto; column-gap: 20px; }
-.w-time .w-label, .w-time .w-foot { grid-column: 1 / -1; }
-.w-time .w-big { align-self: end; }
-.w-arc { align-self: end; justify-self: end; width: 100%; max-width: 230px; height: auto; overflow: visible; }
-.w-arc-track { fill: none; stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: .8 2.2; }
-.w-arc-done { fill: none; stroke: #ff9f0a; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 0 100; transition: stroke-dasharray 1.2s var(--ease-out); }
+/* my time: the clock and the date under it, and the sun's real height through the day (home.js draws the curve) */
+.w-date { margin-top: 6px; font-size: 15px; color: var(--text-2); white-space: nowrap; }
+.w-date:empty { display: none; }
+.w-arc { display: block; width: 100%; height: auto; margin-top: auto; padding-top: 14px; overflow: visible; }
+.w-time .w-foot { margin-top: 0; padding-top: 6px; }
+.w-arc-track { fill: none; stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 2 4; stroke-linecap: round; }
+.w-arc-done { fill: none; stroke: #ff9f0a; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .w-arc-ground { stroke: var(--line); stroke-width: 1; }
 .w-arc-sun { fill: #ff9f0a; filter: drop-shadow(0 0 6px rgba(255, 159, 10, .65)); }
-.w-time.is-night .w-arc-done { stroke: var(--text-3); }
-.w-time.is-night .w-arc-sun { display: none; } /* the sun is down: not on the path */
+.w-time.is-night .w-arc-sun { fill: var(--text-3); filter: none; } /* the sun under the horizon, where it really is */
+
+/* the visitor's weather, on a painted sky like a phone's weather app: a gradient here for the kind of weather and the
+   time of day, and over it, in a canvas (sky.js), the sun or moon, stars, clouds, fog, rain, snow, wind and lightning */
+.w-weather { isolation: isolate; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .22); }
+.w-weather .w-label, .w-weather .w-foot { color: rgba(255, 255, 255, .8); }
+.w-weather .w-text { color: rgba(255, 255, 255, .92); }
+.w-weather .w-big { font-size: 52px; font-weight: 500; }
+.w-sky { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; background: var(--sky, linear-gradient(165deg, #5d7fa6, #8eabc9)); transition: filter .6s; }
+.w-sky-fx { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+/* a soft shade behind the words (top left and along the foot), so white text holds on snow, fog and passing clouds */
+.w-sky::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(90% 75% at 0% 0%, rgba(10, 20, 40, .26), transparent 70%), linear-gradient(transparent 70%, rgba(10, 20, 40, .16));
+}
+
+.w-weather[data-sky="clear-day"]    { --sky: linear-gradient(165deg, #2b7de9 0%, #4fa3f3 55%, #8acbff 100%); }
+.w-weather[data-sky="clear-night"]  { --sky: linear-gradient(165deg, #081230 0%, #172c5c 60%, #284676 100%); }
+.w-weather[data-sky="cloudy-day"]   { --sky: linear-gradient(165deg, #4a86d0 0%, #79aadd 60%, #a6c6e6 100%); }
+.w-weather[data-sky="cloudy-night"] { --sky: linear-gradient(165deg, #121f3b 0%, #26395c 60%, #3a5073 100%); }
+.w-weather[data-sky="overcast"]     { --sky: linear-gradient(165deg, #627288 0%, #8593a6 60%, #a6b1be 100%); }
+.w-weather[data-sky="fog"]          { --sky: linear-gradient(165deg, #7b8692 0%, #a0aab4 55%, #c4cbd2 100%); }
+.w-weather[data-sky="drizzle"]      { --sky: linear-gradient(165deg, #4b6079 0%, #6f87a1 60%, #8ea3ba 100%); }
+.w-weather[data-sky="rain"]         { --sky: linear-gradient(165deg, #33455b 0%, #4c6079 60%, #657a91 100%); }
+.w-weather[data-sky="heavy-rain"]   { --sky: linear-gradient(165deg, #222f3f 0%, #374a60 60%, #4f647b 100%); }
+.w-weather[data-sky="sleet"]        { --sky: linear-gradient(165deg, #4d6378 0%, #768ca2 60%, #a2b4c5 100%); }
+.w-weather[data-sky="snow"]         { --sky: linear-gradient(165deg, #6a83a1 0%, #8ea5c0 60%, #b2c4d8 100%); }
+.w-weather[data-sky="storm"]        { --sky: linear-gradient(165deg, #1b1f33 0%, #313754 60%, #464d6c 100%); }
+/* a typhoon: a dark, green-grey sky, and the wind driving the rain nearly flat (sky.js) */
+.w-weather[data-sky="typhoon"]      { --sky: linear-gradient(165deg, #15232b 0%, #283e48 55%, #3f5b66 100%); }
+/* dawn and dusk, with the sun near the horizon: warm low down, by day still blue above, by night already deep */
+.w-weather[data-dusk][data-sky$="-day"]   { --sky: linear-gradient(165deg, #3a5ba3 0%, #8f7fb0 45%, #e39a8a 78%, #f6b56f 100%); }
+.w-weather[data-dusk][data-sky$="-night"] { --sky: linear-gradient(165deg, #141f46 0%, #3b3d72 50%, #8a5f86 80%, #c9806e 100%); }
+.w-weather[data-night]:not([data-sky^="clear"]):not([data-sky^="cloudy"]) .w-sky { filter: brightness(.7); }
+[data-theme="dark"] .w-weather .w-sky { filter: brightness(.86); }
+[data-theme="dark"] .w-weather[data-night]:not([data-sky^="clear"]):not([data-sky^="cloudy"]) .w-sky { filter: brightness(.62); }
+/* the whole weather card is the button that opens the week, once the week is in */
+.w-hit { position: absolute; inset: 0; z-index: 1; width: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.w-hit:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+.w-weather.has-week { transition: transform .35s var(--ease-out); }
+.w-weather.has-week:hover { transform: translateY(-2px); }
+.w-weather.has-week [data-w-city]::after { content: ' ›'; }
+
+/* the week, on the same sky as the card */
+/* the sky hangs on the dialog itself, the words scroll over it if the screen is short */
+.w-week { width: min(460px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 0; border-radius: 28px; background: transparent; overflow: hidden; box-shadow: 0 24px 60px rgba(0, 0, 0, .35); }
+.w-week::backdrop { background: rgba(0, 0, 0, .38); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.w-week-in { max-height: calc(100dvh - 32px); overflow: auto; padding: 22px 22px 16px; }
+.w-week-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.w-week-title { font-size: var(--fs-small); font-weight: 500; color: rgba(255, 255, 255, .8); }
+.w-week-title [data-w-city]::after { content: none; }
+.w-week-now { display: flex; align-items: baseline; gap: 12px; margin-top: 4px; font-size: 15px; color: rgba(255, 255, 255, .9); white-space: pre; }
+.w-week-now .num { font: 500 44px/1.05 var(--font-display); letter-spacing: -.02em; color: #fff; }
+.w-week-close { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .2); color: #fff; cursor: pointer; transition: background-color .2s; }
+.w-week-close:hover { background: rgba(255, 255, 255, .32); }
+.w-week-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+.w-days { border-top: 1px solid rgba(255, 255, 255, .2); }
+.w-day { display: grid; grid-template-columns: 3.4em 30px minmax(0, 1fr) 2.4em minmax(64px, 1.4fr) 2.4em; align-items: center; gap: 10px; min-height: 52px; padding: 4px 0; font-size: 15px; }
+.w-day + .w-day { border-top: 1px solid rgba(255, 255, 255, .12); }
+.w-day-name small { display: block; margin-top: 1px; font-size: 12px; color: rgba(255, 255, 255, .62); }
+.w-day-icon { display: flex; flex-direction: column; align-items: center; }
+.w-day-icon svg { width: 22px; height: 22px; }
+.w-day-icon small { margin-top: 1px; font-size: 11px; line-height: 1; color: #b5e2ff; }
+.w-day-sky { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255, 255, 255, .86); }
+.w-day-lo { text-align: right; color: rgba(255, 255, 255, .68); }
+/* each day's low to high, on one scale for the week; the colours run cool to warm across that whole scale */
+.w-day-bar { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .18); }
+.w-day-bar i { position: absolute; inset: 0; border-radius: 3px; background: linear-gradient(90deg, #64d2ff, #9be15d 45%, #ffd60a 72%, #ff9f0a); clip-path: inset(0 calc(var(--r) * 100%) 0 calc(var(--l) * 100%) round 3px); }
+.w-day-now { position: absolute; top: 50%; left: calc(var(--x) * 100%); width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .28); }
+.w-week-src { margin-top: 10px; font-size: 12px; color: rgba(255, 255, 255, .6); }
+html:has(.w-week[open]) { overflow: hidden; } /* the page stays put behind it */
+@media (max-width: 440px) {
+  .w-week { border-radius: 24px; }
+  .w-week-in { padding: 18px 16px 14px; }
+  .w-day { grid-template-columns: 3.2em 28px 2.2em minmax(0, 1fr) 2.2em; gap: 8px; }
+  .w-day-sky { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .w-week[open] { animation: w-week-in .38s var(--ease-out); }
+  .w-week[open]::backdrop { animation: w-fade .3s ease-out; }
+}
+@keyframes w-week-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+@keyframes w-fade { from { opacity: 0; } }
+
 
 /* what I am working on: the words themselves, large, and a slow pulse to say it is still going */
 .w-doing { background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, #30d158 14%, transparent), transparent 62%), var(--card-bg); }
@@ -328,13 +410,13 @@ a.w:hover { transform: translateY(-2px); }
 @media (max-width: 1180px) {
   .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .w { grid-column: span 1; }
+  .w:last-child:nth-child(odd) { grid-column: 1 / -1; } /* an odd card out takes the whole row */
 }
 @media (max-width: 720px) {
   .bento { gap: 12px; }
   .w { --pad: 16px; min-height: 168px; grid-column: span 2; }
   .w-big { font-size: 38px; }
-  .w-time { grid-template-columns: minmax(0, 1fr); }
-  .w-arc { justify-self: stretch; max-width: none; margin-top: 8px; }
+  .w-weather .w-big { font-size: 46px; }
   /* the list: smaller pictures, the date drops out */
   .row { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding: 10px; }
   .row-thumb { width: 48px; height: 48px; }
