@@ -9,8 +9,13 @@ const fromServer = process.env.CONTENT_DIR ? path.resolve(process.env.CONTENT_DI
 const content = JSON.parse(readFileSync(fromServer && existsSync(fromServer) ? fromServer : local, 'utf8'));
 
 export default {
-  // 正式域名（RSS、sitemap、分享卡片会用到），不要以 / 结尾
-  url: 'https://yourname.dev',
+  // 正式域名（RSS、sitemap、分享卡片会用到），不要以 / 结尾，比如 'https://example.com'。
+  // 还没有域名时先空着：页面照常生成，只是这些地方会是相对地址，构建时会提醒你
+  url: '',
+
+  // 主页「此刻」第一张卡片：你这边的时间和日出日落，并写出和访客差几个小时。只用时区算，不需要更精确的位置。
+  // timeZone 用 IANA 名称（比如 'Asia/Shanghai'），city 是卡片上显示的名字。不想公开，把 timeZone 改成 '' 这张卡片就不显示
+  here: { timeZone: 'Asia/Taipei', city: '台北' },
   lang: 'zh-CN',
 
   // 侧边导航默认在屏幕哪一侧：'left' | 'right'。访客也可以在导航面板底部自己切换，会记在他的浏览器里

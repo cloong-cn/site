@@ -140,7 +140,7 @@ http.createServer(async (req, res) => {
     res.writeHead(status, headers);
     res.end(body);
   } catch {
-    res.writeHead(500);
+    res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('build output missing — run npm run build');
   }
 }).listen(PORT, HOST, () => console.log(`\n  ${SERVE_ONLY ? 'serving dist/' : 'dev server'} → http://localhost:${PORT}${HOST === '127.0.0.1' ? '' : `  (also on this computer's network address, port ${PORT})`}${adminMock ? `\n  admin, on sample data → http://localhost:${PORT}${ADMIN_PATH}/` : ''}\n`));
