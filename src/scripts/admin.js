@@ -114,6 +114,7 @@
   var toastText = toast.querySelector('[data-toast-text]');
   var toastPre = toast.querySelector('[data-toast-pre]');
   var toastTimer = 0;
+  /* kind: 'busy', 'ok', 'error' or 'info'. An 'ok' note goes by itself after 6 s; a job's log can be unfolded under it */
   function note(text, kind, log) {
     clearTimeout(toastTimer);
     toast.hidden = false;
@@ -218,6 +219,8 @@
     if (me.ready === false) banner('服务器上还没有网站的代码：先在电脑上 git push 一次（README「第一次部署」），之后才能发布和上传图片。');
     route();
   }
+  /* a line across the top for something to do on the server (no code there yet, a backup never taken away);
+     link is [words, address]. No text hides it */
   function banner(text, link) {
     var b = $('[data-banner]');
     b.textContent = '';
@@ -279,6 +282,8 @@
       drawPosts();
     }, function (err) { note(err.message, 'error'); });
   }
+  /* the list, narrowed by the tabs (全部 / 草稿 / 已发布 / 回收站) and the search box. In the trash a row does not open
+     the editor: it offers 恢复 and 彻底删除 instead */
   function drawPosts() {
     var list = $('[data-post-list]');
     var q = $('[data-post-search]').value.trim().toLowerCase();
@@ -353,6 +358,8 @@
     drop.classList.remove('is-over');
     if (e.dataTransfer && e.dataTransfer.files.length) importFiles(e.dataTransfer.files);
   });
+  /* .md files or a .zip of them, one after another: each is uploaded, imported in the background (a job) and gets a
+     line in the report. Whatever the files say, the articles come in as drafts */
   function importFiles(files) {
     var list = Array.prototype.slice.call(files);
     var report = $('[data-import-report]');
@@ -379,6 +386,7 @@
     });
     chain.then(function () { loadPosts(); });
   }
+  /* one line of the report: what became of a file (新建, 覆盖, 另存, 跳过, 失败), and why */
   function reportRow(r) {
     var li = make('li', 'ir-item');
     var kind = { 新建: 'is-approved', 覆盖: 'is-changed', 另存: 'is-approved', 跳过: '', 失败: 'is-error' }[r.result] || '';
@@ -401,15 +409,20 @@
   var body = f('body');
   var frame = $('[data-ed-frame]');
   var SLUG = /^[\p{L}\p{N}][\p{L}\p{N}_.-]{0,119}$/u;
+  /* the state of the article open in the editor. saved: the form as the server last took it (a JSON snapshot, to tell
+     what is not saved yet); blocked: why saving waits ('loading', 'changed' elsewhere, 'slug' taken, 'trashed');
+     again: another save was asked for while one was on its way */
   function fresh() {
     return { id: 0, version: 0, state: 'draft', liveSlug: null, publishAt: null, extra: [], saved: '', savedAt: 0, saving: null, again: false,
       slugTouched: false, blocked: '', publishing: false, error: '' };
   }
   var st = fresh();
 
+  /* an address from a title: letters and digits kept (Chinese ones too), everything else one dash */
   function slugFrom(title) {
     return title.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80);
   }
+  /* the form as the server takes it (fill, below, does the opposite) */
   function payload() {
     return {
       slug: f('slug').value.trim(),
@@ -473,6 +486,8 @@
   extraBox.addEventListener('input', extraHint);
   extraBox.addEventListener('change', extraHint);
 
+  /* the bar above the editor follows the article: its state, what the publish button means now (发布, 更新上线, or
+     nothing to do), and a word when the address has changed since it went up */
   function buttons() {
     var badge = $('[data-ed-state]');
     var s = !st.id ? ['新文章', ''] : st.publishAt ? ['定时 ' + whenShort(st.publishAt), 'is-scheduled'] : STATE[st.state] || STATE.draft;
@@ -494,6 +509,7 @@
     slugNote.textContent = st.blocked === 'slug' ? st.error : moved ? '网址改了：发布后旧地址 /blog/' + st.liveSlug + '/ 会自动跳到新地址，评论也会跟过去。' : '';
     slugNote.classList.toggle('is-error', st.blocked === 'slug');
   }
+  /* the small line saying whether what is on screen is saved, being saved, or why it is not */
   function status() {
     var s = $('[data-ed-saved]');
     var text, cls = '';
@@ -506,6 +522,8 @@
     s.className = 'ed-saved ' + cls;
   }
 
+  /* an article into the editor (no id: a new one). An answer that arrives after another article was opened is
+     dropped: `mine` is the state it was asked for */
   function openEditor(id) {
     closeHistory();
     clearTimeout(saveTimer);
@@ -569,6 +587,8 @@
   }
 
   var keepTimer = 0, saveTimer = 0, retryTimer = 0;
+  /* after every edit: a copy kept in this browser (0.6 s on), the preview, the word count, the pictures checked, and a
+     save once the typing has paused for 2.5 s */
   function changed() {
     st.error = '';
     buttons();
@@ -595,6 +615,7 @@
   });
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushSave(); });
 
+  /* the automatic save, ms from now: put off while publishing, skipped while saving is blocked or the editor is closed */
   function scheduleSave(ms) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () {
@@ -690,6 +711,8 @@
     save({}).then(function (ok) { if (ok) note('已保存（网站上还没变，点「' + $('[data-ed-publish]').textContent + '」才会更新）', 'ok'); });
   });
 
+  /* 发布 / 更新上线: what is not saved is saved first, then the site is rebuilt in the background and followed to the end.
+     Typed into meanwhile, the article stays 有修改未发布 */
   function publish() {
     if (st.publishing || st.saving) return;
     var title = f('title').value.trim();
@@ -843,6 +866,8 @@
     var before = body.value.slice(0, at);
     return !before || /\n\n$/.test(before) ? '' : /\n$/.test(before) ? '\n' : '\n\n';
   }
+  /* the whole lines the selection touches, as [start, end) (a selection ending just after a line break leaves the next
+     line out) */
   function lineRange() {
     var v = body.value, s = body.selectionStart, e = body.selectionEnd;
     if (e > s && v[e - 1] === '\n') e--;
@@ -865,6 +890,7 @@
     }).join('\n');
     edit(r[0], r[1], out);
   }
+  /* marks around the selection (or around a placeholder, selected, to type over); when they are there already, they go */
   function wrap(before, after, placeholder) {
     var s = body.selectionStart, e = body.selectionEnd, sel = body.value.slice(s, e);
     if (sel && body.value.slice(s - before.length, s) === before && body.value.slice(e, e + after.length) === after) {
@@ -874,6 +900,7 @@
     sel = sel || placeholder;
     edit(s, e, before + sel + after, before.length, before.length + sel.length);
   }
+  /* [words](https://) with the address selected, ready to paste over */
   function link() {
     var s = body.selectionStart, e = body.selectionEnd, sel = body.value.slice(s, e) || '链接文字';
     edit(s, e, '[' + sel + '](https://)', sel.length + 3, sel.length + 11);
@@ -1012,6 +1039,8 @@
     m.remove();
     return { left: left, top: top, bottom: top + line };
   }
+  /* [[ in the text: the articles whose title or address holds what follows (not this one); the one chosen becomes
+     [[address]] */
   function linkSuggest() {
     var at = body.selectionStart;
     if (at !== body.selectionEnd) { acClose(); return; }
@@ -1101,6 +1130,8 @@
     if (file.size > 25 * 1024 * 1024) return Promise.reject(new Error('图片太大了（最多 25 MB）：' + (file.name || '')));
     return call('upload', file, file.type || 'application/octet-stream').then(function (r) { return r.path; });
   }
+  /* pictures pasted, dropped or picked: a placeholder goes in at the caret straight away, so the writing can go on, and
+     turns into ![](/media/…) once the upload is in (or disappears if it fails) */
   function uploadFiles(files) {
     Array.prototype.forEach.call(files, function (file) {
       if (!/^image\//.test(file.type || '') && !/\.(jpe?g|png|webp|gif|avif|heic|svg)$/i.test(file.name)) { note('只能上传图片：' + file.name, 'error'); return; }
@@ -1219,6 +1250,8 @@
       var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(inner);
       return m[2] ? m[1] + mark + m[2] + mark + m[3] : inner;
     }
+    /* what runs inside a line: text (with Markdown's own marks escaped), bold, italic, struck out, highlighted, code and
+       links. Word processors often say bold or italic in a style rather than a tag, so the style is read too */
     function inline(node) {
       var out = '';
       node.childNodes.forEach(function (n) {
@@ -1259,10 +1292,14 @@
     function lines(text, prefix, first) {
       return text.split('\n').map(function (l, i) { return (i === 0 && first != null ? first : prefix) + l; }).join('\n');
     }
+    /* a paragraph: spaces trimmed (two at the end of a line stay: they are a line break), and a line that would read
+       as a heading, quote or list item escaped */
     function para(text) {
       return text.split('\n').map(function (l) { return l.replace(/^ +| +$/g, function (m) { return m.length >= 2 && /  $/.test(l) ? '  ' : ''; }); })
         .join('\n').replace(/^(\s*)([#>+-]|\d+\.)(?=\s)/gm, '$1\\$2').trim();
     }
+    /* the blocks: headings (moved down so they start at ##), lists, quotes, code, tables, pictures with their captions;
+       loose text in between is gathered into paragraphs. tight: inside a list item, so no blank lines */
     function blocks(node, tight) {
       var out = [], run = '';
       function flush() { var p = para(run); if (p) out.push(p); run = ''; }
@@ -1303,6 +1340,7 @@
       flush();
       return out.join(tight ? '\n' : '\n\n');
     }
+    /* a list: what is under an item indented to line up with its text, check boxes kept as [ ] or [x] */
     function list(el, depth) {
       var ordered = el.tagName === 'OL', n = Number(el.getAttribute && el.getAttribute('start')) || 1;
       return Array.prototype.filter.call(el.children, function (c) { return c.tagName === 'LI'; }).map(function (li) {
@@ -1314,6 +1352,7 @@
         return lines(text, ' '.repeat(mark.length), mark + task);
       }).join('\n');
     }
+    /* a table: its first row becomes the header, short rows are padded, | and line breaks inside a cell escaped */
     function table(t) {
       var rows = Array.prototype.filter.call(t.querySelectorAll('tr'), function (r) { return r.closest('table') === t; }).map(function (r) {
         return Array.prototype.map.call(r.children, function (c) { return inline(c).replace(/\s*\n\s*/g, '<br>').replace(/\|/g, '\\|').trim(); });
@@ -1349,6 +1388,8 @@
     while ((m = IMG_RE.exec(text))) { var u = m[1] || m[2]; if (u && out.indexOf(u) < 0) out.push(u); }
     return out;
   }
+  /* where a picture's address points: 'ok', 'remote' (another site), 'data' (the bytes themselves) or 'missing' (a path
+     on the writer's own computer, from a pasted or imported text) */
   function kind(u) {
     /* an address on the site itself: an upload (/media/), or a file in the site's code (/images/, /videos/ …) */
     if (/^\/(?!\/)/.test(u)) return 'ok';
@@ -1363,6 +1404,8 @@
     return n.toLowerCase();
   }
   var scanTimer = 0, missing = [];
+  /* the notice above the text: pictures still on the writer's computer (to be dropped in) and pictures linked from
+     other sites (which may refuse to show them) */
   function scanImages() {
     var all = refs(body.value);
     missing = all.filter(function (u) { return kind(u) === 'missing'; });
@@ -1386,6 +1429,8 @@
     [['](' + from, '](' + to], ['](<' + from + '>', '](' + to], ['src="' + from + '"', 'src="' + to + '"']].forEach(function (p) { v = v.split(p[0]).join(p[1]); });
     setText(v);
   }
+  /* files dropped on that notice: each goes where a missing picture has its file name (a single file for the single
+     missing picture needs no match), is uploaded and swapped in */
   function fillMissing(files) {
     var list = Array.prototype.slice.call(files), done = 0, unmatched = [];
     var jobs = list.map(function (file) {
@@ -1597,6 +1642,7 @@
     el.addEventListener('load', cb, { once: true });
   }
   function docOf(el) { try { return el.contentDocument; } catch (e) { return null; } }
+  /* a preview: title, lead and the rendered text written into its frame. False while the frame is still loading */
   function fillFrame(el, title, lead, md) {
     var d = docOf(el);
     if (!d || !d.querySelector('[data-pv]')) return false;
@@ -1640,6 +1686,7 @@
     tops = Array.prototype.map.call(mirror.children, function (c) { return c.offsetTop; });
     linesDirty = false;
   }
+  /* where each block of the preview starts, and the source line it came from (render puts that in data-line) */
   function measureBlocks() {
     var d = docOf(frame);
     blockLines = [];
@@ -1652,6 +1699,8 @@
     });
     blocksDirty = false;
   }
+  /* the source line at the top of the editor (and how far into it) is found among the measured lines; the preview goes
+     to the same point between the blocks around it. At the very end of the text, the preview goes to its end too */
   function syncScroll() {
     var d = docOf(frame);
     if (!d || !d.scrollingElement || frame.offsetParent === null) return;
@@ -1674,6 +1723,7 @@
   }
   body.addEventListener('scroll', function () { requestAnimationFrame(syncScroll); });
   window.addEventListener('resize', function () { linesDirty = true; blocksDirty = true; });
+  /* 编辑 / 预览: on a narrow screen only one of the two shows (on a wide one they stand side by side) */
   function setMode(mode) {
     $('[data-ed-split]').setAttribute('data-mode', mode);
     $$('[data-mode]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === mode)); });
@@ -1685,6 +1735,8 @@
   });
   setupFrame(frame, function () { frameReady = true; preview(); });
 
+  /* the count under the editor: Chinese characters and Latin words, leaving out code and picture addresses; the reading
+     time at about 400 characters or 220 words a minute */
   function count() {
     var t = body.value.replace(/```[\s\S]*?```/g, ' ').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ').replace(/\]\([^)]*\)/g, ']');
     var cjk = (t.match(/[\u3400-\u9fff\uf900-\ufaff]/g) || []).length;
@@ -1806,6 +1858,8 @@
     li.appendChild(actions);
     return li;
   }
+  /* the reply form under a comment, made once (clicking 回复 again only focuses it). Replying to a comment still waiting
+     approves it too; Ctrl+Enter sends */
   function replyBox(li) {
     var box = li.querySelector('.ad-replybox');
     if (box) { box.querySelector('textarea').focus(); return; }
@@ -1901,6 +1955,7 @@
     });
   });
 
+  /* the next 50 comments, older than the last one shown, added to the list; fewer than 50 means there are no more */
   function pageComments() {
     if (cbusy) return;
     cbusy = true;
@@ -1941,6 +1996,8 @@
     if (file.usedBy && file.usedBy.length) return '用在' + file.usedBy.slice(0, 3).join('、') + (file.usedBy.length > 3 ? ' 等 ' + file.usedBy.length + ' 处' : '');
     return file.history ? '只在历史版本里' : '没有用到（上传一周后自动清理）';
   }
+  /* one picture. With pick (the editor's 从图片库选) a click chooses it; otherwise it opens the original, and the card
+     offers 复制写法 and, when nothing uses the picture, 删除 */
   function mediaCard(file, pick) {
     var fig = make('figure', 'mg-item');
     var thumb = make(pick ? 'button' : 'a', 'mg-thumb');
@@ -1988,6 +2045,7 @@
   function loadMedia() {
     return call('media').then(function (d) { mediaFiles = d.files || []; return mediaFiles; });
   }
+  /* the grid (all of them, or only those nothing uses) and the total size */
   function drawMedia() {
     var grid = $('[data-media-grid]');
     grid.textContent = '';
@@ -2080,6 +2138,8 @@
     var o = keys.reduce(function (o, k) { if (o[k] == null) o[k] = {}; return o[k]; }, obj);
     o[last] = value;
   }
+  /* a field of the 主页 form, tied to a place in the site's data by its path ("work.projects.0.name"). max 0 is the
+     services' 运行中 / 维护中 choice; area makes it a text box of two lines */
   function input(path, label, max, area, value) {
     var wrap = make('label', 'cm-field' + (area ? ' is-area' : ''));
     var el;
@@ -2100,6 +2160,8 @@
     wrap.appendChild(make('span', 'cm-label', label));
     return wrap;
   }
+  /* the whole 主页 form, from SITE above: plain fields, and lists whose items can be added, moved and removed (each
+     change draws the form again) */
   function drawSite() {
     siteForm.textContent = '';
     SITE.forEach(function (sec) {
@@ -2170,6 +2232,7 @@
   function alSnap() { return JSON.stringify({ slug: al.slug, draft: al.draft, data: al.data }); }
   function albumDirty() { return !!al && alSnap() !== alSaved; }
   function mediaUrl(path) { return API + 'files' + path; }
+  /* every album, as a card with its cover, its state and how many photos it has */
   function openAlbums() {
     var box = $('[data-album-list]');
     box.textContent = '';
@@ -2197,6 +2260,8 @@
       });
     }, function (err) { note(err.message, 'error'); });
   }
+  /* one album into the form: arg is its id, or 'new'. What it was when opened is kept (alSaved), to tell what is not
+     saved */
   function openAlbum(arg) {
     al = null;
     alBox.textContent = '';
@@ -2256,6 +2321,8 @@
       return (a.date ? 0 : 1) - (b.date ? 0 : 1) || String(a.date).localeCompare(String(b.date));
     });
   }
+  /* the photos grouped by day (or by month, as the album's timeline says), each group with a line to write for it; each
+     photo with its note, its date and 设为封面 / 隐藏 / 移除 */
   function alDraw() {
     alBox.textContent = '';
     $('[data-al-empty]').hidden = al.data.photos.length > 0;
@@ -2406,6 +2473,9 @@
     alDrop.classList.remove('is-over');
     if (e.dataTransfer && e.dataTransfer.files.length) alUpload(e.dataTransfer.files);
   });
+  /* saves the whole album, as a draft or on the site (draft says which, so the same call publishes and takes down).
+     When the site has to change, it is rebuilt in the background; if that fails, the album is shown as draft or on the
+     site again, as it was before */
   function alSave(draft, label) {
     if (!al || alUploading) return;
     if (!String(al.data.title || '').trim()) { note('图集要有个名字', 'error'); alEl('title').focus(); return; }
@@ -2475,6 +2545,7 @@
     var m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-/.exec(name);
     return m ? m[1] + '-' + m[2] + '-' + m[3] + ' ' + m[4] + ':' + m[5] : name;
   }
+  /* the builds kept on the server, the live one marked; switching to another is how a release is rolled back */
   function openDeploys() {
     var bl = $('[data-builds]');
     bl.textContent = '';
@@ -2531,6 +2602,8 @@
       if (stale && me.ready !== false) banner(b.downloaded ? '已经 ' + Math.floor((Date.now() - b.downloaded) / DAY) + ' 天没把备份下载到服务器以外的地方了。' : '备份还从没下载到服务器以外的地方。', ['去下载', '#/deploys']);
     }, function () {});
   }
+  /* where the backups stand: the last automatic one, the uploaded pictures, the last copy sent away from the server and
+     the last download; then the buttons to download the newest backup, or all the articles as Markdown */
   function drawBackups() {
     var box = $('[data-backup]');
     box.textContent = '';
