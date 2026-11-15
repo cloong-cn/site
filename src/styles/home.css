@@ -70,7 +70,7 @@ html:has(body.home) { scroll-behavior: smooth; }
   background: radial-gradient(560px circle at var(--gx, 20%) var(--gy, 20%), var(--text) 0%, color-mix(in srgb, var(--text) 74%, transparent) 70%);
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
 }
-.hero-intro { margin-top: 28px; max-width: 26em; font-size: var(--fs-body); line-height: 1.7; color: var(--text-2); }
+.hero-intro { margin-top: 28px; max-width: 26em; font-size: var(--fs-body); line-height: 1.7; color: var(--text-2); text-wrap: pretty; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; margin-top: 40px; }
 
 /* the visitor's city, time, temperature and next sunrise or sunset, on a pill of clear glass over the planet */
