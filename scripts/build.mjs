@@ -6,6 +6,7 @@
 //   CONTENT_DIR=<that folder> (blog/*.md, site.json, albums.json)  MEDIA_DIR=/srv/blog/media (uploaded pictures, /media/…)
 import { readFile, writeFile, mkdir, rm, readdir, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -31,6 +32,14 @@ const DEMO = process.env.COMMENTS_DEMO === '1'; /* sample comments instead of th
 const CONTENT = path.resolve(root, process.env.CONTENT_DIR || 'content');
 const MEDIA_DIR = process.env.MEDIA_DIR || '';
 const GALLERY_DIR = path.resolve(root, process.env.GALLERY_DIR || 'content/gallery'); /* in the code, whatever CONTENT_DIR says: see gallery.mjs */
+
+/* a package's folder, found the way Node finds it for an import: node_modules here or in any folder above, so a
+   checkout without its own node_modules (a git worktree inside the main one, say) still builds */
+const searchPaths = createRequire(import.meta.url).resolve.paths('') || [];
+function pkgDir(name) {
+  for (const dir of searchPaths) if (existsSync(path.join(dir, name, 'package.json'))) return path.join(dir, name);
+  throw new Error(`找不到 ${name}：先运行 npm install`);
+}
 
 const cfg = (await import(pathToFileURL(path.join(root, 'site.config.mjs')).href)).default;
 cfg.url = String(cfg.url || '').replace(/\/+$/, '');
@@ -532,7 +541,7 @@ async function buildAssets() {
 
   /* KaTeX's stylesheet, for the pages with a formula: only the woff2 fonts (every browser this site supports reads
      them), each loaded only when a formula on the page uses it */
-  const kdir = path.join(root, 'node_modules/katex/dist');
+  const kdir = path.join(pkgDir('katex'), 'dist');
   let kcss = (await readFile(path.join(kdir, 'katex.min.css'), 'utf8')).replace(/,\s*url\(fonts\/[^)]+\.(?:woff|ttf)\)\s*format\("(?:woff|truetype)"\)/g, '');
   for (const name of new Set([...kcss.matchAll(/url\(fonts\/([\w-]+\.woff2)\)/g)].map((m) => m[1]))) {
     const rel = await emit(`fonts/katex/${name}`, await readFile(path.join(kdir, 'fonts', name)));
@@ -550,12 +559,12 @@ async function buildAssets() {
   }
   await emit('site-admin.js', await bundle('theme.js', 'theme-icon.js', 'admin.js'));
   /* the admin editor's preview turns Markdown into HTML in the browser with the same library the build uses */
-  await emit('admin-marked.js', await readFile(path.join(root, 'node_modules/marked/lib/marked.umd.js')));
-  await emit('admin-katex.js', await readFile(path.join(root, 'node_modules/katex/dist/katex.min.js'))); /* and the formulas */
+  await emit('admin-marked.js', await readFile(path.join(pkgDir('marked'), 'lib/marked.umd.js')));
+  await emit('admin-katex.js', await readFile(path.join(kdir, 'katex.min.js'))); /* and the formulas */
   /* and colours code as the articles do: highlight.js (its core, and the languages scripts/highlight.mjs has names for)
      with this site's own second pass, glued into one plain script. Each part keeps its own scope; the admin page loads
      it only when the preview first shows a code block */
-  const hl = path.join(root, 'node_modules/highlight.js');
+  const hl = pkgDir('highlight.js');
   const HL_LANGS = ['java', 'kotlin', 'groovy', 'gradle', 'scala', 'javascript', 'typescript', 'xml', 'css', 'scss', 'less', 'json', 'yaml', 'ini', 'properties', 'sql', 'bash', 'shell', 'powershell', 'python', 'go', 'rust', 'c', 'cpp', 'csharp', 'php', 'ruby', 'swift', 'dart', 'dockerfile', 'nginx', 'makefile', 'markdown', 'diff', 'http', 'graphql', 'lua', 'glsl', 'plaintext', 'objectivec'];
   let hlJs = `(function () {\n'use strict';\nvar hljs = (function () {\nvar module = { exports: {} }, exports = module.exports;\n${await readFile(path.join(hl, 'lib/core.js'), 'utf8')}\nreturn module.exports;\n})();\n`;
   for (const l of HL_LANGS) {
@@ -696,6 +705,7 @@ async function checks(posts) {
       } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, `${at}[${i}]`));
       else if (v && typeof v === 'object') for (const k of Object.keys(v)) if (k !== 'media') walk(v[k], at ? `${at}.${k}` : k);
     })(cfg, '');
+    if (!cfg.url) notes.push('site.config.mjs 的 url（正式域名）还空着：RSS、sitemap 和分享卡片里的地址现在是相对地址');
     if (holes.length) notes.push(`content/site.json 或 site.config.mjs 里还有 ${holes.length} 处占位内容：${holes.slice(0, 8).join('、')}${holes.length > 8 ? ' ……' : ''}`);
     const og = path.join(pub, 'og.jpg');
     if (existsSync(og) && hash(await readFile(og)).slice(0, 10) === SAMPLE_OG.slice(0, 10)) notes.push('src/public/og.jpg（分享到微信、X 时的预览图）还是示例图，上面写着 Your Name');

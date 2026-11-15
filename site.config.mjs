@@ -9,8 +9,9 @@ const fromServer = process.env.CONTENT_DIR ? path.resolve(process.env.CONTENT_DI
 const content = JSON.parse(readFileSync(fromServer && existsSync(fromServer) ? fromServer : local, 'utf8'));
 
 export default {
-  // 正式域名（RSS、sitemap、分享卡片会用到），不要以 / 结尾
-  url: 'https://yourname.dev',
+  // 正式域名（RSS、sitemap、分享卡片会用到），不要以 / 结尾，比如 'https://example.com'。
+  // 还没有域名时先空着：页面照常生成，只是这些地方会是相对地址，构建时会提醒你
+  url: '',
   lang: 'zh-CN',
 
   // 侧边导航默认在屏幕哪一侧：'left' | 'right'。访客也可以在导航面板底部自己切换，会记在他的浏览器里
