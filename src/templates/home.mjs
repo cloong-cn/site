@@ -1,7 +1,7 @@
 import { esc, ymd, icon, topNav, footer, picture, placeholder, tile, wan } from './util.mjs';
 
-/* the home page is one page that scrolls: the planet; a row of small cards about right now; the writing, the work
-   and a word about me. The top bar (util.mjs, topNav) links the last three */
+/* the home page is one page that scrolls: the planet; one row of small cards about right now, and close under it
+   the writing; the work and a word about me. The top bar (util.mjs, topNav) links the last three */
 
 /* ------------------------------------------------------------------ hero */
 
@@ -24,33 +24,28 @@ ${hud()}
 </section>`;
 }
 
-function sectionHead(id, title, lead) {
+/* extra: more to say under the lead (the blog's numbers) */
+function sectionHead(id, title, lead, extra = '') {
   return `<header class="sec-head">
 <h2 class="sec-title" id="${id}-title">${title}</h2>
 ${lead ? `<p class="sec-lead">${esc(lead)}</p>` : ''}
+${extra}
 </header>`;
 }
 
 /* ------------------------------------------------------------------ now: small cards, like widgets */
 
-/* Two wide cards on top — the time where I am, and the weather where the visitor is — then the smaller ones about
-   me: what I am working on, the services on my server and the writing. Each card shows only when it has something
-   to say, and the rows share out their width among the cards they have (--span, of six columns).
-   The services card names them and nothing more: never an address (lab.services[].host stays private) */
-const STATUS = { up: '运行中', maintenance: '维护中' };
-
-function now(cfg, ctx, posts) {
+/* One row of two cards: the time where I am, and the weather where the visitor is. The row shares out its width
+   among the cards it has (--span, of six columns): without a time zone for me, the weather has it all.
+   How much I have written sits with the blog, just below. The self-hosted services (site.json, lab) are not shown */
+function now(cfg, ctx) {
   const here = cfg.here?.timeZone ? cfg.here : null;
-  const services = (cfg.lab?.services || []).filter((s) => s.name);
-  const total = posts.reduce((n, p) => n + (p.words || 0), 0);
-  const recent = posts.slice(0, 8).reverse();
-  const most = Math.max(1, ...recent.map((p) => p.words || 0));
-  /* the sun's height over the day, drawn by home.js: time across (midnight to midnight), height up, the horizon at y=50 */
-  const top = [
+  /* the sun's height over the day, drawn by home.js: time across (midnight to midnight), height up, the horizon at y=32 */
+  const cards = [
     here && ((span) => `<article class="card w w-time" style="--span:${span}" data-w-time data-tz="${esc(here.timeZone)}">
 <p class="w-label"><span>${esc(here.city || here.timeZone.split('/').pop().replace(/_/g, ' '))}</span><span data-w-diff></span></p>
 <div class="w-when"><p class="w-big num" data-w-clock>--:--</p><p class="w-date num" data-w-date></p></div>
-<svg class="w-arc" viewBox="0 0 300 96" aria-hidden="true"><path class="w-arc-track"/><path class="w-arc-done"/><line class="w-arc-ground" x1="0" y1="50" x2="300" y2="50"/><circle class="w-arc-sun" r="6" cx="-20" cy="-20"/></svg>
+<svg class="w-arc" viewBox="0 0 300 64" aria-hidden="true"><path class="w-arc-track"/><path class="w-arc-done"/><line class="w-arc-ground" x1="0" y1="32" x2="300" y2="32"/><circle class="w-arc-sun" r="5" cx="-20" cy="-20"/></svg>
 <p class="w-foot"><span data-w-rise></span><span data-w-set></span></p>
 </article>`),
     /* the visitor's weather, its sky painted to match (home.js sets data-sky) */
@@ -63,29 +58,11 @@ function now(cfg, ctx, posts) {
 <button class="w-hit" type="button" data-w-week-open aria-haspopup="dialog" aria-label="查看你那边近 7 天的天气" hidden></button>
 </article>`,
   ].filter(Boolean);
-  const bottom = [
-    cfg.hero?.now && ((span) => `<article class="card w w-doing" style="--span:${span}">
-<p class="w-label"><span>正在做</span><i class="w-live" aria-hidden="true"></i></p>
-<p class="w-lede">${esc(cfg.hero.now)}</p>
-</article>`),
-    services.length && ((span) => `<article class="card w w-lab" style="--span:${span}">
-<p class="w-label"><span>自托管</span><span class="num">${services.length} 项</span></p>
-<ul class="w-services">${services.map((s) => `<li class="is-${s.status === 'maintenance' ? 'maintenance' : 'up'}"><span>${esc(s.name)}</span><span>${STATUS[s.status] || STATUS.up}</span></li>`).join('')}</ul>
-${cfg.lab.lead ? `<p class="w-foot"><span>${esc(cfg.lab.lead)}</span></p>` : ''}
-</article>`),
-    (span) => `<article class="card w w-stats" style="--span:${span}">
-<p class="w-label"><span>写作</span></p>
-<p class="w-big num">${posts.length}<small> 篇</small></p>
-<p class="w-text">一共约 ${wan(total)}</p>
-<div class="w-foot"><span>最近 ${recent.length} 篇的篇幅</span><ol class="w-bars" aria-label="最近几篇文章的篇幅">${recent.map((p) => `<li style="--h:${Math.max(8, Math.round(((p.words || 0) / most) * 100))}%" title="${esc(p.title)}：${p.words} 字"></li>`).join('')}</ol></div>
-</article>`,
-  ].filter(Boolean);
-  const row = (cards) => cards.map((card) => card(6 / cards.length));
   return `<section class="sec sec-now" id="now" aria-labelledby="now-title">
 <div class="container sec-inner">
-${sectionHead('now', '此刻', '我这边的近况，和你那边的天气。')}
+${sectionHead('now', '此刻', '我这边的时间，和你那边的天气。')}
 <div class="bento">
-${[...row(top), ...row(bottom)].join('\n')}
+${cards.map((card) => card(6 / cards.length)).join('\n')}
 </div>
 ${weekDialog()}
 </div>
@@ -115,11 +92,23 @@ function thumb(p, ctx) {
   return `<span class="row-thumb is-glyph" style="${tile(p.tags[0] || p.title)}" aria-hidden="true">${esc(glyph)}</span>`;
 }
 
+/* how much there is to read, under the section's name: the count, the words, and how long the last few articles were */
+function written(posts) {
+  if (!posts.length) return '';
+  const total = posts.reduce((n, p) => n + (p.words || 0), 0);
+  const recent = posts.slice(0, 8).reverse();
+  const most = Math.max(1, ...recent.map((p) => p.words || 0));
+  return `<div class="written">
+<p class="written-sum"><b class="num">${posts.length}</b> 篇<span>一共约 ${wan(total)}</span></p>
+<div class="written-recent"><ol class="bars" aria-label="最近几篇文章的篇幅">${recent.map((p) => `<li style="--h:${Math.max(8, Math.round(((p.words || 0) / most) * 100))}%" title="${esc(p.title)}：${p.words} 字"></li>`).join('')}</ol><span>最近 ${recent.length} 篇的篇幅</span></div>
+</div>`;
+}
+
 function blog(cfg, ctx, posts) {
   const rows = posts.slice(0, 5).map((p) => `<li><a class="row" href="${ctx.href(`/blog/${p.slug}/`)}">${thumb(p, ctx)}<span class="row-text"><span class="row-title">${esc(p.title)}</span><span class="row-sub">${esc(p.description)}</span></span><span class="row-date num">${ymd(p.date)}</span></a></li>`).join('');
   return `<section class="sec sec-blog" id="blog" aria-labelledby="blog-title">
 <div class="container sec-inner">
-${sectionHead('blog', '博客', cfg.blog.lead)}
+${sectionHead('blog', '博客', cfg.blog.lead, written(posts))}
 ${rows ? `<ol class="card group">${rows}</ol>` : '<p class="post-empty">第一篇文章即将发布。</p>'}
 <a class="text-link more-link" href="${ctx.href('/blog/')}">全部 ${posts.length} 篇文章${icon.chevron}</a>
 </div>
@@ -168,7 +157,6 @@ ${sectionHead('work', '作品', cfg.work.lead)}
 
 /* ------------------------------------------------------------------ about */
 
-/* what I am working on and the self-hosted services have cards of their own under "now" */
 const facts = (cfg) => cfg.about.facts || [];
 
 function about(cfg, ctx) {
@@ -202,7 +190,7 @@ export function homePage(cfg, ctx, posts) {
     body: `${topNav(cfg, ctx, { home: true })}
 <main id="main" class="home-main">
 ${hero(cfg, ctx)}
-${now(cfg, ctx, posts)}
+${now(cfg, ctx)}
 ${blog(cfg, ctx, posts)}
 ${work(cfg, ctx)}
 ${about(cfg, ctx)}
